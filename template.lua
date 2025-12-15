@@ -90,7 +90,6 @@ local Window = WindUI:CreateWindow({
         Height = 44,
         ButtonsType = "Mac", -- Default or Mac
     },
-    --[[
     KeySystem = {
         Title = "Key System Example  |  WindUI Example",
         Note = "Key System. Key: 1234",
@@ -103,7 +102,6 @@ local Window = WindUI:CreateWindow({
             -- return EnteredKey == "1234" -- if key == "1234" then return true else return false end
         end
     }
-    ]]
 })
 
 --createPopup()

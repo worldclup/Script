@@ -1282,7 +1282,7 @@ local function AutoJoinStep()
 			end
 
 			 -- 🔥 สำคัญ: ปล่อยให้ loop ตรวจเองว่าจะเข้าไหม
-			task.delay(6, function()
+			task.delay(3, function()
 				if not IsInGamemode() then
 					State.JoiningGamemode = false
                     State.Mode = "WORLD"
@@ -1345,7 +1345,7 @@ end
 ----------------------------------------------------------------
 task.spawn(function()
 	while true do
-		task.wait(0.3)
+		task.wait(0.1)
 		if not State.ScriptRunning then
 			return
 		end
