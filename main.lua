@@ -17,7 +17,7 @@ local Window = WindUI:CreateWindow({
 	-- Icon = "keyboard",
 	SideBarWidth = 150,
 	Theme = "Dark", -- Dark, Darker, Light, Aqua, Amethyst, Rose
-	Size = UDim2.fromOffset(800, 600),
+	Size = UDim2.fromOffset(800, 400),
 	Topbar = {
 		Height = 44,
 		ButtonsType = "Mac", -- Default or Mac
@@ -1009,16 +1009,29 @@ GamemodeTabGroup1:Dropdown({
 	end
 })
 
-GamemodeTabGroup1:Slider({
+-- GamemodeTabGroup1:Slider({
+-- 	Title = "Wave",
+-- 	Step = 1,
+-- 	Value = {
+-- 		Min = 0,
+-- 		Max = 500,
+-- 		Default = 500,
+-- 	},
+-- 	Callback = function(v)
+-- 		State.RaidWave = v
+-- 	end
+-- })
+GamemodeTabGroup1:Input({
 	Title = "Wave",
-	Step = 1,
-	Value = {
-		Min = 0,
-		Max = 500,
-		Default = 500,
-	},
+	Value = State.RaidWave,
+    Type = "Input",
 	Callback = function(v)
-		State.RaidWave = v
+        local num = tonumber(v)
+        if not num then
+            warn("กรุณากรอกตัวเลขเท่านั้น")
+            return
+        end
+		State.RaidWave = num
 	end
 })
 ----------------------------------------------------------------
@@ -1037,14 +1050,22 @@ GamemodeTabGroup2:Dropdown({
 	end
 })
 
-GamemodeTabGroup2:Slider({
+-- GamemodeTabGroup2:Slider({
+-- 	Title = "Wave",
+-- 	Step = 1,
+-- 	Value = {
+-- 		Min = 0,
+-- 		Max = 200,
+-- 		Default = 200,
+-- 	},
+-- 	Callback = function(v)
+-- 		State.DefenseWave = v
+-- 	end
+-- })
+GamemodeTabGroup2:Input({
 	Title = "Wave",
-	Step = 1,
-	Value = {
-		Min = 0,
-		Max = 200,
-		Default = 200,
-	},
+	Value = State.DefenseWave,
+    Type = "Input",
 	Callback = function(v)
 		State.DefenseWave = v
 	end
@@ -1065,14 +1086,22 @@ GamemodeTabGroup3:Dropdown({
 	end
 })
 
-GamemodeTabGroup3:Slider({
+-- GamemodeTabGroup3:Slider({
+-- 	Title = "Wave",
+-- 	Step = 1,
+-- 	Value = {
+-- 		Min = 0,
+-- 		Max = 500,
+-- 		Default = 500,
+-- 	},
+-- 	Callback = function(v)
+-- 		State.ShadowGateWave = v
+-- 	end
+-- })
+GamemodeTabGroup3:Input({
 	Title = "Wave",
-	Step = 1,
-	Value = {
-		Min = 0,
-		Max = 500,
-		Default = 500,
-	},
+	Value = State.ShadowGateWave,
+    Type = "Input",
 	Callback = function(v)
 		State.ShadowGateWave = v
 	end
@@ -1093,14 +1122,22 @@ GamemodeTabGroup4:Dropdown({
 	end
 })
 
-GamemodeTabGroup4:Slider({
+-- GamemodeTabGroup4:Slider({
+-- 	Title = "Floor",
+-- 	Step = 1,
+-- 	Value = {
+-- 		Min = 0,
+-- 		Max = 100,
+-- 		Default = 100,
+-- 	},
+-- 	Callback = function(v)
+-- 		State.PirateTowerFloor = v
+-- 	end
+-- })
+GamemodeTabGroup4:Input({
 	Title = "Floor",
-	Step = 1,
-	Value = {
-		Min = 0,
-		Max = 100,
-		Default = 100,
-	},
+	Value = State.PirateTowerFloor,
+    Type = "Input",
 	Callback = function(v)
 		State.PirateTowerFloor = v
 	end
