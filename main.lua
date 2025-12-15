@@ -1220,9 +1220,9 @@ local function AutoJoinStep()
 	if IsInGamemode() then
 		return
 	end
-	if State.ReturnToFarmPending then
-		return
-	end
+	-- if State.ReturnToFarmPending then
+	-- 	return
+	-- end
 
     -- กันยิงซ้ำถี่เกิน
 	if State.JoiningGamemode then
@@ -1252,7 +1252,7 @@ local function AutoJoinStep()
 				end
 			end)
 
-			break
+			-- break
 		end
 	end
 end
