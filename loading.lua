@@ -7,7 +7,7 @@ local function PlayFixedPremiumLoading()
     local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 
     -- CONFIGURATION (Warna Tema Dark Premium)
-    local DarkBG = Color3.fromRGB(25, 25, 30) -- Background Hitam Abu Premium
+    local DarkBG = Color3.fromRGB(0, 0, 0) -- Background Hitam Abu Premium
     local AccentColor1 = Color3.fromRGB(255, 255, 255) -- Cyan Cerah
     local AccentColor2 = Color3.fromRGB(227, 227, 227) -- Biru Elektrik
     local TextWhite = Color3.fromRGB(255, 255, 255)
