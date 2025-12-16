@@ -1395,8 +1395,8 @@ end)
 ----------------------------------------------------------------
 -- Tap 3
 ----------------------------------------------------------------
-local UpgradeTab = Window:Tab({
-	Title = "Upgrade",
+local StatusTab = Window:Tab({
+	Title = "Status",
 	Icon = "chart-no-axes-combined",
 	IconColor = Blue,
 	IconShape = "Square",
@@ -1404,20 +1404,20 @@ local UpgradeTab = Window:Tab({
 ----------------------------------------------------------------
 -- Toggle: Upgrade Tab Group1
 ----------------------------------------------------------------
-UpgradeTab:Section({
-	Title = "Auto Upgrade",
+StatusTab:Section({
+	Title = "Rank Up & Stats",
 	TextSize = 14,
 })
-local UpgradeTabGroup1 = UpgradeTab:Group({})
+local StatusTabGroup1 = StatusTab:Group({})
 
-UpgradeTabGroup1:Toggle({
+StatusTabGroup1:Toggle({
 	Title = "Auto RankUp (Mastery)",
 	Value = false,
 	Callback = function(v)
 		State.AutoRankUp = v
 	end
 })
-UpgradeTabGroup1:Dropdown({
+StatusTabGroup1:Dropdown({
 	Title = "Auto Upgrade Stats",
 	Values = {
 		"--",
@@ -1438,43 +1438,43 @@ UpgradeTabGroup1:Dropdown({
 ----------------------------------------------------------------
 -- Toggle: Auto Yen Upgrades
 ----------------------------------------------------------------
-UpgradeTab:Section({
+StatusTab:Section({
 	Title = "Yen Upgrades",
 	TextSize = 14,
 })
-local UpgradeTabGroup2 = UpgradeTab:Group({})
-local UpgradeTabGroup3 = UpgradeTab:Group({})
-local UpgradeTabGroup4 = UpgradeTab:Group({})
+local StatusTabGroup2 = StatusTab:Group({})
+local StatusTabGroup3 = StatusTab:Group({})
+local StatusTabGroup4 = StatusTab:Group({})
 
-UpgradeTabGroup2:Toggle({
+StatusTabGroup2:Toggle({
 	Title = "Luck",
 	Justify = "Center",
 	Callback = function(v)
 		State.YenSelectedLuck = v
 	end
 })
-UpgradeTabGroup2:Toggle({
+StatusTabGroup2:Toggle({
 	Title = "Yen",
 	Justify = "Center",
 	Callback = function(v)
 		State.YenSelectedYen = v
 	end
 })
-UpgradeTabGroup3:Toggle({
+StatusTabGroup3:Toggle({
 	Title = "Mastery",
 	Justify = "Center",
 	Callback = function(v)
 		State.YenSelectedMastery = v
 	end
 })
-UpgradeTabGroup3:Toggle({
+StatusTabGroup3:Toggle({
 	Title = "Critical",
 	Justify = "Center",
 	Callback = function(v)
 		State.YenSelectedCritical = v
 	end
 })
-UpgradeTabGroup4:Toggle({
+StatusTabGroup4:Toggle({
 	Title = "Damage",
 	Justify = "Right",
 	Callback = function(v)
@@ -1484,22 +1484,22 @@ UpgradeTabGroup4:Toggle({
 ----------------------------------------------------------------
 -- Toggle: Auto Token Upgrades
 ----------------------------------------------------------------
-UpgradeTab:Section({
+StatusTab:Section({
 	Title = "Token Upgrades",
 	TextSize = 14,
 })
-local UpgradeTabGroup5 = UpgradeTab:Group({})
-local UpgradeTabGroup6 = UpgradeTab:Group({})
-local UpgradeTabGroup7 = UpgradeTab:Group({})
-local UpgradeTabGroup8 = UpgradeTab:Group({})
+local StatusTabGroup5 = StatusTab:Group({})
+local StatusTabGroup6 = StatusTab:Group({})
+local StatusTabGroup7 = StatusTab:Group({})
+local StatusTabGroup8 = StatusTab:Group({})
 
-UpgradeTabGroup5:Toggle({ Title = "Run Speed", Justify = "Center", Callback = function(v) State.TokenSelectedRunSpeed = v end})
-UpgradeTabGroup5:Toggle({ Title = "Luck", Justify = "Center", Callback = function(v) State.TokenSelectedLuck = v end})
-UpgradeTabGroup6:Toggle({ Title = "Yen", Justify = "Center", Callback = function(v) State.TokenSelectedYen = v end})
-UpgradeTabGroup6:Toggle({ Title = "Mastery", Justify = "Center", Callback = function(v) State.TokenSelectedMastery = v end})
-UpgradeTabGroup7:Toggle({ Title = "Drop", Justify = "Center", Callback = function(v) State.TokenSelectedDrop = v end})
-UpgradeTabGroup7:Toggle({ Title = "Critical", Justify = "Center", Callback = function(v) State.TokenSelectedCritical = v end})
-UpgradeTabGroup8:Toggle({ Title = "Damage", Justify = "Center", Callback = function(v) State.TokenSelectedDamage = v end})
+StatusTabGroup5:Toggle({ Title = "Run Speed", Justify = "Center", Callback = function(v) State.TokenSelectedRunSpeed = v end})
+StatusTabGroup5:Toggle({ Title = "Luck", Justify = "Center", Callback = function(v) State.TokenSelectedLuck = v end})
+StatusTabGroup6:Toggle({ Title = "Yen", Justify = "Center", Callback = function(v) State.TokenSelectedYen = v end})
+StatusTabGroup6:Toggle({ Title = "Mastery", Justify = "Center", Callback = function(v) State.TokenSelectedMastery = v end})
+StatusTabGroup7:Toggle({ Title = "Drop", Justify = "Center", Callback = function(v) State.TokenSelectedDrop = v end})
+StatusTabGroup7:Toggle({ Title = "Critical", Justify = "Center", Callback = function(v) State.TokenSelectedCritical = v end})
+StatusTabGroup8:Toggle({ Title = "Damage", Justify = "Center", Callback = function(v) State.TokenSelectedDamage = v end})
 ----------------------------------------------------------------
 -- Has Available Stats Points
 ----------------------------------------------------------------
