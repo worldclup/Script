@@ -75,6 +75,7 @@ local State = {
     YenSelectedMastery = false,
     YenSelectedCritical = false,
     YenSelectedDamage = false,
+    GachaState = {},
 }
 
 local GamemodePriority = {
@@ -1561,7 +1562,7 @@ end
 task.spawn(function()
 	while true do
         task.wait(2)
-        if State.Mode == "WORLD" then
+        -- if State.Mode == "WORLD" then
     
             -- 🔼 RankUp (Server จะเช็ค mastery เต็มเอง)
             if State.AutoRankUp then
@@ -1594,10 +1595,51 @@ task.spawn(function()
             if State.TokenSelectedDamage then FireTokenUpgrade("Damage") end
         end
 
-	end
+	-- end
 end)
 ----------------------------------------------------------------
 -- Tab 4
+----------------------------------------------------------------
+local GachaRoll = Window:Tab({
+	Title = "Gacha Roll",
+	Icon = "dices",
+	IconColor = Yellow,
+	IconShape = "Square",
+})
+----------------------------------------------------------------
+-- Loop create roll
+----------------------------------------------------------------
+local CreateRoll = workspace.Billboards.CrateRoll
+local RollNames = {}
+for _, roll in ipairs(CreateRoll:GetChildren()) do
+	table.insert(RollNames, roll.Name)
+end
+table.sort(RollNames, function(a, b)
+	return a < b
+end)
+local currentGroup = nil
+
+for i, name in ipairs(RollNames) do
+	State.GachaState[name] = false
+
+	-- ทุก ๆ ตัวคี่ (1,3,5,...) ให้สร้าง Group ใหม่
+	if i % 2 == 1 then
+		currentGroup = GachaRoll:Group({})
+	end
+
+	-- เพิ่ม Toggle ลง Group ปัจจุบัน
+	currentGroup:Toggle({
+		Title = name,
+		Value = false,
+		Icon = "bird",
+		Callback = function(v)
+			State.GachaState[name] = v
+		end
+	})
+end
+
+----------------------------------------------------------------
+-- Tab 5
 ----------------------------------------------------------------
 local SettingTab = Window:Tab({
 	Title = "Settings",
@@ -1708,5 +1750,6 @@ Window:OnDestroy(function()
     State.YenSelectedMastery = false
     State.YenSelectedCritical = false
     State.YenSelectedDamage = false
+    State.GachaState = {}
 	_G.ScriptRunning = false
 end)

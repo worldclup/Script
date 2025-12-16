@@ -449,7 +449,7 @@ local UpgradeTab = Window:Tab({
 	IconColor = Blue,
 	IconShape = "Square",
 })
--- 3
+-- 4
 local GachaRoll = Window:Tab({
 	Title = "Gacha Roll",
 	Icon = "dices",
