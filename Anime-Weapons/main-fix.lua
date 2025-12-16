@@ -1,5 +1,5 @@
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
-loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/loading.lua"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/components/loading.lua"))()
 
 -- */  Colors  /* --
 local Purple = Color3.fromHex("#7775F2")
@@ -1701,7 +1701,7 @@ local function BoostFps()
 			["Reset Materials"] = true,
 		}
 	}
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/boost-fps-script.lua"))()
+	loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/components/boost-fps-script.lua"))()
 end
 ----------------------------------------------------------------
 -- Button Boost FPS
