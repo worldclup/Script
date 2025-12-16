@@ -18,22 +18,30 @@ local Window = WindUI:CreateWindow({
 	SideBarWidth = 150,
 	Theme = "Dark", -- Dark, Darker, Light, Aqua, Amethyst, Rose
 	Size = UDim2.fromOffset(800, 400),
-	Topbar = {
-		Height = 44,
-		ButtonsType = "Mac", -- Default or Mac
-	},
-
+	-- Topbar = {
+	-- 	Height = 44,
+	-- 	ButtonsType = "Mac", -- Default or Mac
+	-- },
+    OpenButton = {
+        Title = "Dek",
+        CornerRadius = UDim.new(0, 16),
+        StrokeThickness = 2,
+        Color = ColorSequence.new(Color3.fromHex("#FFFFFF"), Color3.fromHex("#FFFFFF")),
+        OnlyMobile = false,
+        Enabled = true,
+        Draggable = true,
+    },
 })
 
-Window:EditOpenButton({
-	Title = "Dek",
-	CornerRadius = UDim.new(0, 16),
-	StrokeThickness = 2,
-	Color = ColorSequence.new(Color3.fromHex("FF0F7B"), Color3.fromHex("F89B29")),
-	OnlyMobile = false,
-	Enabled = true,
-	Draggable = true,
-})
+-- Window:EditOpenButton({
+-- 	Title = "Dek",
+-- 	CornerRadius = UDim.new(0, 16),
+-- 	StrokeThickness = 2,
+-- 	Color = ColorSequence.new(Color3.fromHex("FF0F7B"), Color3.fromHex("F89B29")),
+-- 	OnlyMobile = false,
+-- 	Enabled = true,
+-- 	Draggable = true,
+-- })
 
 ----------------------------------------------------------------
 -- Game
