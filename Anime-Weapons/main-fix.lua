@@ -77,6 +77,7 @@ local State = {
     YenSelectedCritical = false,
     YenSelectedDamage = false,
     GachaState = {},
+    AutoEquipBest = false,
 }
 
 local GamemodePriority = {
@@ -1144,6 +1145,16 @@ GamemodeTabGroup4:Input({
 	end
 })
 ----------------------------------------------------------------
+-- Auto Equip Best
+----------------------------------------------------------------
+GamemodeTab:Toggle({
+	Title = "Auto Equip Best",
+	Value = false,
+	Callback = function(v)
+		State.AutoEquipBest = v
+	end
+})
+----------------------------------------------------------------
 -- Auto Join Toggle
 ----------------------------------------------------------------
 GamemodeTab:Toggle({
@@ -1361,7 +1372,7 @@ task.spawn(function()
                     State.Mode = "GAMEMODE"
                 end
 
-                ApplyVaultEquipBest("Damage")
+                if State.AutoEquipBest then ApplyVaultEquipBest("Damage") end
             end
 
 			-- if State.Mode ~= "GAMEMODE" then
@@ -1374,7 +1385,7 @@ task.spawn(function()
 			CheckAutoLeave()
 		else
 			if State.Mode == "GAMEMODE" then
-				ApplyVaultEquipBest("Mastery")
+				if State.AutoEquipBest then ApplyVaultEquipBest("Mastery") end
 				-- State.MasteryBuffApplied = true
 				-- State.DamageBuffApplied = false
                 -- เพิ่งออกดัน
@@ -1405,7 +1416,7 @@ local StatusTab = Window:Tab({
 -- Toggle: Upgrade Tab Group1
 ----------------------------------------------------------------
 StatusTab:Section({
-	Title = "Rank Up & Stats",
+	Title = "Auto Upgrade",
 	TextSize = 14,
 })
 local StatusTabGroup1 = StatusTab:Group({})
@@ -1608,35 +1619,97 @@ local GachaRoll = Window:Tab({
 	IconShape = "Square",
 })
 ----------------------------------------------------------------
+-- Gacha Roll Group Config
+----------------------------------------------------------------
+local GachaGroupConfig = {
+	["Shinobi Village"] = {
+		"Biju",
+		"MagicEyes",
+	},
+	["Namek Planet"] = {
+		"Sayajin",
+	},
+	["Desert Land"] = {
+		"Haki",
+		"Fruits",
+	},
+	["Demon Land"] = {
+		"Breathing",
+		"DemonArt",
+		"LowerMoons",
+	},
+	["Paradis"] = {
+		"TitanPets",
+		"Titan",
+		"Organization",
+	},
+	["Shadow City"] = {
+		"Shadow",
+		"SoloRanks",
+		"Monsters",
+	},
+	["Marine Island"] = {
+		"Captains",
+		"Admirals",
+	},
+	["Soul Society"] = {
+		"SoulReapers",
+		"SoulCaptains",
+	},
+}
+local GachaGroupOrder = {
+	"Shinobi Village",
+	"Namek Planet",
+	"Desert Land",
+	"Demon Land",
+	"Paradis",
+	"Shadow City",
+	"Marine Island",
+	"Soul Society",
+}
+----------------------------------------------------------------
 -- Loop create roll
 ----------------------------------------------------------------
 local CreateRoll = workspace.Billboards.CrateRoll
-local RollNames = {}
+local AvailableRolls = {}
+
 for _, roll in ipairs(CreateRoll:GetChildren()) do
-	table.insert(RollNames, roll.Name)
+	AvailableRolls[roll.Name] = true
 end
-table.sort(RollNames, function(a, b)
-	return a < b
-end)
-local currentGroup = nil
 
-for i, name in ipairs(RollNames) do
-	State.GachaState[name] = false
+for  _, mapName in ipairs(GachaGroupOrder) do
+	local rolls = GachaGroupConfig[mapName]
+	if not rolls then end
 
-	-- ทุก ๆ ตัวคี่ (1,3,5,...) ให้สร้าง Group ใหม่
-	if i % 2 == 1 then
-		currentGroup = GachaRoll:Group({})
-	end
-
-	-- เพิ่ม Toggle ลง Group ปัจจุบัน
-	currentGroup:Toggle({
-		Title = name,
-		Value = false,
-		Callback = function(v)
-			State.GachaState[name] = v
-		end
+	GachaRoll:Section({
+		Title = mapName,
+		TextSize = 14,
 	})
+
+	local group = GachaRoll:Group({
+		Title = mapName
+	})
+
+	local currentGroup = nil
+
+	for i, name in ipairs(rolls) do
+		State.GachaState[name] = false
+
+		-- ทุกตัวคี่ = สร้าง Group ใหม่ (จัดแถวละ 2)
+		if i % 2 == 1 then
+			currentGroup = GachaRoll:Group({})
+		end
+
+		currentGroup:Toggle({
+			Title = name,
+			Value = false,
+			Callback = function(v)
+				State.GachaState[name] = v
+			end
+		})
+	end
 end
+
 ----------------------------------------------------------------
 -- Loop auto gacha roll
 ----------------------------------------------------------------
@@ -1772,5 +1845,6 @@ Window:OnDestroy(function()
     State.YenSelectedCritical = false
     State.YenSelectedDamage = false
     State.GachaState = {}
+    State.AutoEquipBest = false
 	_G.ScriptRunning = false
 end)
