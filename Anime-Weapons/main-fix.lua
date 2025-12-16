@@ -1147,8 +1147,10 @@ GamemodeTabGroup4:Input({
 ----------------------------------------------------------------
 -- Auto Equip Best
 ----------------------------------------------------------------
-GamemodeTab:Toggle({
+local GamemodeTabGroup5 = GamemodeTab:Group({})
+GamemodeTabGroup5:Toggle({
 	Title = "Auto Equip Best",
+    -- Desc = "Gamemode (Damage)",
 	Value = false,
 	Callback = function(v)
 		State.AutoEquipBest = v
@@ -1157,7 +1159,7 @@ GamemodeTab:Toggle({
 ----------------------------------------------------------------
 -- Auto Join Toggle
 ----------------------------------------------------------------
-GamemodeTab:Toggle({
+GamemodeTabGroup5:Toggle({
 	Title = "Auto Join",
 	Value = false,
 	Callback = function(v)
