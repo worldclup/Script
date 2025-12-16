@@ -73,7 +73,7 @@ local function EnableFPSBoost()
 			["Reset Materials"] = true,
 		}
 	}
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/CasperFlyModz/discord.gg-rips/main/FPSBooster.lua"))()
+	loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/boost-fps-script.lua"))()
 end
 
 

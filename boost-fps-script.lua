@@ -369,7 +369,7 @@ if _G.SendNotifications then
     StarterGui:SetCore("SendNotification", {
         Title = "Dek Dev HUB",
         Text = "Checking " .. #Descendants .. " Instances...",
-        Duration = 15,
+        Duration = 2,
         Button1 = "Okay"
     })
 end
