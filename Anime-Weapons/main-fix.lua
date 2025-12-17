@@ -1634,6 +1634,7 @@ local GachaGroupConfig = {
 	["Desert Land"] = {
 		"Haki",
 		"Fruits",
+        "Swordsman",
 	},
 	["Demon Land"] = {
 		"Breathing",
