@@ -2345,7 +2345,7 @@ local function BoostFps()
 			["Reset Materials"] = true,
 		}
 	}
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/components/boost-fps-script.lua"))()
+	loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/components/boost-fps.lua"))()
 end
 ----------------------------------------------------------------
 -- Button Boost FPS
