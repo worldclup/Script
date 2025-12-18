@@ -1,4 +1,6 @@
+--------------------------------------------------------------------------------------------------------------------------------
 -- [[ สคริปต์สแกนข้อมูล PlayerData จากหน่วยความจำ ]]
+--------------------------------------------------------------------------------------------------------------------------------
 local function GetMaterials()
     local PlayerData = nil
     
@@ -30,3 +32,39 @@ end
 
 -- รันฟังก์ชัน
 GetMaterials()
+--------------------------------------------------------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------------------------------------------------------
+local function ScanForTrainerData()
+    local PlayerData = nil
+    for _, v in pairs(getgc(true)) do
+        if type(v) == "table" and rawget(v, "Attributes") and rawget(v, "YenUpgrades") then
+            PlayerData = v
+            break
+        end
+    end
+
+    if PlayerData then
+        print("🔍 เริ่มการสแกนหาตำแหน่งข้อมูล Trainer...")
+        
+        -- ฟังก์ชันช่วยสแกนลึกลงไปในตาราง 2 ชั้น
+        for key, value in pairs(PlayerData) do
+            -- ถ้าเจอค่าที่เป็นตัวเลข และชื่อ Key ตรงกับชื่อ Trainer ของเรา
+            -- หรือถ้าเจอ Table แล้วข้างในมีชื่อ Trainer
+            if type(value) == "table" then
+                for subKey, subValue in pairs(value) do
+                    if subKey == "Breath" or subKey == "Wise" or subKey == "Pirate" or subKey == "Leve" or subKey == "Sung" or subKey == "Sanli"  or subKey == "IceDragon" then
+                        print(string.format("⭐ เจอแล้ว! ข้อมูลอยู่ที่: PlayerData.%s.%s = %s", tostring(key), tostring(subKey), tostring(subValue)))
+                    end
+                end
+            elseif key == "Breath" or key == "Wise" or key == "Pirate" then
+                 print(string.format("⭐ เจอแล้ว! ข้อมูลอยู่ที่: PlayerData.%s = %s", tostring(key), tostring(value)))
+            end
+        end
+        print("------------------------------------------")
+    else
+        warn("❌ ไม่พบ PlayerData ใน Memory")
+    end
+end
+
+ScanForTrainerData()

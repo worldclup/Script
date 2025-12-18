@@ -42,6 +42,13 @@ local ReliableRemote = game.ReplicatedStorage:WaitForChild("Reply"):WaitForChild
 local Reliable = game:GetService("ReplicatedStorage").Reply.Reliable
 local Players = game:GetService("Players")
 local LP = Players.LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage");
+local ConfigsPath = ReplicatedStorage.Scripts.Configs;
+local YenModule = require(ConfigsPath.Machines.YenUpgrades);
+local YenUpgradeConfig = YenModule.Config;
+local TokenModule = require(ConfigsPath.Machines.TokenUpgrades);
+local RankModule = require(ConfigsPath.Machines.RankUp);
+local UtilsModule = require(ConfigsPath.Utility.Utils);
 ----------------------------------------------------------------
 -- State
 ----------------------------------------------------------------
@@ -76,6 +83,7 @@ local State = {
 	YenSelectedMastery = false,
 	YenSelectedCritical = false,
 	YenSelectedDamage = false,
+    YenUpgradeState = {},
 	GachaState = {},
 	TrainerState = {},
 	AutoEquipBest = false,
@@ -642,7 +650,35 @@ local EnemyMaster = {
 		}
 	},
 }
-
+----------------------------------------------------------------
+-- Format Number
+----------------------------------------------------------------
+-- local function FormatNumber(value)
+--     if value >= 1000 and value < 1000000 then
+--         -- ใช้ math.floor เพื่อปัดเศษทศนิยมตำแหน่งที่ 2 ลงก่อนแสดงผล
+--         local rounded = math.floor(value / 100) / 10 
+--         return string.format("%.1fk", rounded):gsub("%.0k", "k")
+--     elseif value >= 1000000 then
+--         local rounded = math.floor(value / 100000) / 10
+--         return string.format("%.1fM", rounded):gsub("%.0M", "M")
+--     end
+--     return tostring(math.floor(value)) -- ปัดเศษจำนวนเต็มลงด้วย
+-- end
+local function FormatNumber(n)
+	return UtilsModule.ToText(n);
+end;
+local function GetYenCost(lvl)
+	return YenModule.GetUpgradeCost(lvl);
+end;
+local function GetYenBuff(name, lvl)
+	return YenModule.GetUpgradeBuff(name, lvl);
+end;
+local function GetTokenCost(lvl)
+	return TokenModule.GetUpgradeCost(lvl);
+end;
+local function GetTokenBuff(name, lvl)
+	return TokenModule.GetUpgradeBuff(name, lvl);
+end;
 ----------------------------------------------------------------
 -- Get Zone
 ----------------------------------------------------------------
@@ -1402,6 +1438,7 @@ task.spawn(function()
 					State.Mode = "GAMEMODE"
 				end
 				if State.AutoEquipBest then
+                    task.wait(3)
 					ApplyVaultEquipBest("Damage")
 				end
 			end
@@ -1417,6 +1454,7 @@ task.spawn(function()
 		else
 			if State.Mode == "GAMEMODE" then
 				if State.AutoEquipBest then
+                    task.wait(3)
 					ApplyVaultEquipBest("Mastery")
 				end
 				-- State.MasteryBuffApplied = true
@@ -1482,49 +1520,78 @@ StatusTabGroup1:Dropdown({
 ----------------------------------------------------------------
 -- Toggle: Auto Yen Upgrades
 ----------------------------------------------------------------
-StatusTab:Section({
-	Title = "Yen Upgrades",
-	TextSize = 14,
-})
-local StatusTabGroup2 = StatusTab:Group({})
-local StatusTabGroup3 = StatusTab:Group({})
-local StatusTabGroup4 = StatusTab:Group({})
+-- ฟังก์ชันคำนวณราคาตาม Module ที่คุณส่งมา
+----------------------------------------------------------------
 
-StatusTabGroup2:Toggle({
-	Title = "Luck",
-	Justify = "Center",
-	Callback = function(v)
-		State.YenSelectedLuck = v
-	end
-})
-StatusTabGroup2:Toggle({
-	Title = "Yen",
-	Justify = "Center",
-	Callback = function(v)
-		State.YenSelectedYen = v
-	end
-})
-StatusTabGroup3:Toggle({
-	Title = "Mastery",
-	Justify = "Center",
-	Callback = function(v)
-		State.YenSelectedMastery = v
-	end
-})
-StatusTabGroup3:Toggle({
-	Title = "Critical",
-	Justify = "Center",
-	Callback = function(v)
-		State.YenSelectedCritical = v
-	end
-})
-StatusTabGroup4:Toggle({
-	Title = "Damage",
-	Justify = "Right",
-	Callback = function(v)
-		State.YenSelectedDamage = v
-	end
-})
+local YenToggleUI = {}
+local YenUpgradeNames = {"Luck", "Yen", "Mastery", "Critical", "Damage"}
+
+StatusTab:Section({ Title = "Yen Upgrades", TextSize = 14 })
+local currentGroup = nil
+
+for i, name in ipairs(YenUpgradeNames) do
+    if i % 2 == 1 then
+        currentGroup = StatusTab:Group({})
+    end
+    
+    State.YenUpgradeState[name] = false
+    YenToggleUI[name] = currentGroup:Toggle({
+        Title = name,
+        Value = false,
+        Callback = function(v)
+            State.YenUpgradeState[name] = v
+        end
+    })
+end
+----------------------------------------------------------------
+-- ฟังก์ชันคำนวณราคาตาม Module ที่คุณส่งมา
+----------------------------------------------------------------
+task.spawn(function()
+    local PlayerData = nil
+    while true do
+        if Window.Destroyed then break end
+
+        for _, v in pairs(getgc(true)) do
+            if type(v) == "table" and rawget(v, "Attributes") and rawget(v, "YenUpgrades") then
+                PlayerData = v
+                break
+            end
+        end
+
+        if PlayerData then
+            local YenUpgrades = PlayerData.YenUpgrades or {}
+
+            for name, toggleUI in pairs(YenToggleUI) do
+                local currentLevel = YenUpgrades[name] or 0
+                local maxLevel = YenUpgradeConfig[name].MaxLevel or 0
+
+                pcall(function()
+                    -- 1. จัดการ Title และสถานะ MAX
+                    if currentLevel == nil then
+                        toggleUI:SetTitle(name .. " 🔒")
+                        toggleUI:SetDesc("Status: Locked")
+                        toggleUI:Lock()
+                    elseif currentLevel >= maxLevel then
+                        toggleUI:SetTitle(name .. " [MAX] ✅")
+                        toggleUI:SetDesc(string.format("Buff: +%s%%", GetYenBuff(name, currentLevel)))
+                        toggleUI:Lock()
+                        if State["YenSelected" .. name] then
+                            State["YenSelected" .. name] = false
+                            toggleUI:Set(false)
+                        end
+                    else
+                        local cost = GetYenCost(currentLevel);
+                        toggleUI:SetTitle(name .. " [" .. currentLevel .. "/" .. maxLevel .. "]")
+                        toggleUI:SetDesc(string.format("Cost: %s | (Buff: +%s%%)", FormatNumber(cost), FormatNumber(GetYenBuff(name, currentLevel))))
+                        toggleUI:Unlock()
+                    end
+                end)
+            end
+        end
+
+        task.wait(1)
+    end
+end)
 ----------------------------------------------------------------
 -- Toggle: Auto Token Upgrades
 ----------------------------------------------------------------
@@ -1646,68 +1713,68 @@ end
 ----------------------------------------------------------------
 -- Loop Tap 3
 ----------------------------------------------------------------
-task.spawn(function()
-	while true do
-		if Window.Destroyed then
-			break;
-		end;
-		task.wait(2)
-        -- if State.Mode == "WORLD" then
+-- task.spawn(function()
+-- 	while true do
+-- 		if Window.Destroyed then
+-- 			break;
+-- 		end;
+-- 		task.wait(2)
+--         -- if State.Mode == "WORLD" then
     
-            -- 🔼 RankUp (Server จะเช็ค mastery เต็มเอง)
-		if State.AutoRankUp then
-			ReliableRemote:FireServer("RankUp", {})
-		end
-		if State.SelectedStat then
-                -- เช็คก่อนเสมอ
-			if HasAvailableStatPoints() then
-                    -- อัปทีละ 1 (ปลอดภัยสุด)
-				ReliableRemote:FireServer("Distribute Stat Point", {
-					State.SelectedStat,
-					1
-				})
-			end
-		end
-		if State.YenSelectedLuck then
-			FireYenUpgrade("Luck")
-		end
-		if State.YenSelectedYen then
-			FireYenUpgrade("Yen")
-		end
-		if State.YenSelectedMastery then
-			FireYenUpgrade("Mastery")
-		end
-		if State.YenSelectedCritical then
-			FireYenUpgrade("Critical")
-		end
-		if State.YenSelectedDamage then
-			FireYenUpgrade("Damage")
-		end
-		if State.TokenSelectedRunSpeed then
-			FireTokenUpgrade("Run Speed")
-		end
-		if State.TokenSelectedLuck then
-			FireTokenUpgrade("Luck")
-		end
-		if State.TokenSelectedYen then
-			FireTokenUpgrade("Yen")
-		end
-		if State.TokenSelectedMastery then
-			FireTokenUpgrade("Mastery")
-		end
-		if State.TokenSelectedDrop then
-			FireTokenUpgrade("Drop")
-		end
-		if State.TokenSelectedCritical then
-			FireTokenUpgrade("Critical")
-		end
-		if State.TokenSelectedDamage then
-			FireTokenUpgrade("Damage")
-		end
-	end
+--             -- 🔼 RankUp (Server จะเช็ค mastery เต็มเอง)
+-- 		if State.AutoRankUp then
+-- 			ReliableRemote:FireServer("RankUp", {})
+-- 		end
+-- 		if State.SelectedStat then
+--                 -- เช็คก่อนเสมอ
+-- 			if HasAvailableStatPoints() then
+--                     -- อัปทีละ 1 (ปลอดภัยสุด)
+-- 				ReliableRemote:FireServer("Distribute Stat Point", {
+-- 					State.SelectedStat,
+-- 					1
+-- 				})
+-- 			end
+-- 		end
+-- 		if State.YenSelectedLuck then
+-- 			FireYenUpgrade("Luck")
+-- 		end
+-- 		if State.YenSelectedYen then
+-- 			FireYenUpgrade("Yen")
+-- 		end
+-- 		if State.YenSelectedMastery then
+-- 			FireYenUpgrade("Mastery")
+-- 		end
+-- 		if State.YenSelectedCritical then
+-- 			FireYenUpgrade("Critical")
+-- 		end
+-- 		if State.YenSelectedDamage then
+-- 			FireYenUpgrade("Damage")
+-- 		end
+-- 		if State.TokenSelectedRunSpeed then
+-- 			FireTokenUpgrade("Run Speed")
+-- 		end
+-- 		if State.TokenSelectedLuck then
+-- 			FireTokenUpgrade("Luck")
+-- 		end
+-- 		if State.TokenSelectedYen then
+-- 			FireTokenUpgrade("Yen")
+-- 		end
+-- 		if State.TokenSelectedMastery then
+-- 			FireTokenUpgrade("Mastery")
+-- 		end
+-- 		if State.TokenSelectedDrop then
+-- 			FireTokenUpgrade("Drop")
+-- 		end
+-- 		if State.TokenSelectedCritical then
+-- 			FireTokenUpgrade("Critical")
+-- 		end
+-- 		if State.TokenSelectedDamage then
+-- 			FireTokenUpgrade("Damage")
+-- 		end
+-- 	end
 
-	-- end
-end)
+-- 	-- end
+-- end)
 ----------------------------------------------------------------
 -- Tab 4
 ----------------------------------------------------------------
@@ -1848,20 +1915,6 @@ for _, mapName in ipairs(GachaGroupOrder) do
 	end
 end
 ----------------------------------------------------------------
--- Format Number
-----------------------------------------------------------------
-local function FormatNumber(value)
-    if value >= 1000 and value < 1000000 then
-        -- ใช้ math.floor เพื่อปัดเศษทศนิยมตำแหน่งที่ 2 ลงก่อนแสดงผล
-        local rounded = math.floor(value / 100) / 10 
-        return string.format("%.1fk", rounded):gsub("%.0k", "k")
-    elseif value >= 1000000 then
-        local rounded = math.floor(value / 100000) / 10
-        return string.format("%.1fM", rounded):gsub("%.0M", "M")
-    end
-    return tostring(math.floor(value)) -- ปัดเศษจำนวนเต็มลงด้วย
-end
-----------------------------------------------------------------
 -- Loop
 ----------------------------------------------------------------
 task.spawn(function()
@@ -1888,11 +1941,11 @@ task.spawn(function()
                     -- เช็คสถานะการปลดล็อก (อ้างอิงจาก PlayerData.Vault หรือ Unlocked)
                     -- ปกติ Gacha จะเช็คว่ามีข้อมูลใน Vault หรือยัง
                     local isUnlocked = PlayerData.Vault and PlayerData.Vault[name] ~= nil
-                    local statusIcon = isUnlocked and " 🔓" or " 🔒"
+                    local statusIcon = isUnlocked and " " or " 🔒"
 
                     pcall(function()
                         -- 1. อัปเดต Title ให้มีไอคอนสถานะท้ายชื่อ
-                        -- เช็คก่อนว่าตันหรือยัง ถ้ายังไม่ตันให้โชว์ 🔓/🔒
+                        -- เช็คก่อนว่าตันหรือยัง ถ้ายังไม่ตันให้โชว์ /🔒
                         local MaxLevelOverrides = { ["Race"] = "6" }
                         local targetMaxLevel = MaxLevelOverrides[name] or "7"
                         
@@ -1938,31 +1991,6 @@ task.spawn(function()
         task.wait(1)
     end
 end)
-----------------------------------------------------------------
--- Loop auto gacha roll
-----------------------------------------------------------------
--- task.spawn(function()
--- 	while true do
--- 		if Window.Destroyed then
--- 			break;
--- 		end;
--- 		task.wait(1) -- ปรับ delay ได้
-        
--- 		for name, enabled in pairs(State.GachaState) do
--- 			if enabled then
--- 				local args = {
--- 					[1] = "Crate Roll Start",
--- 					[2] = {
--- 						[1] = name,
--- 						[2] = false,
--- 					}
--- 				}
--- 				ReliableRemote:FireServer(unpack(args))
--- 				task.wait(0.3) -- กัน spam server
--- 			end
--- 		end
--- 	end
--- end)
 ----------------------------------------------------------------
 -- Loop auto gacha roll (เช็คจำนวนขั้นต่ำ 10 ชิ้น)
 ----------------------------------------------------------------
@@ -2175,7 +2203,7 @@ task.spawn(function()
                 
                 pcall(function()
                     -- 1. จัดการ Title และสถานะ (ย้าย 🔒/✅ ไปไว้หลังชื่อ)
-                    local statusIcon = isUnlocked and " 🔓" or " 🔒"
+                    local statusIcon = isUnlocked and " " or " 🔒"
                     if currentLevel >= maxLevel then
                         toggleUI:SetTitle(name .. " [MAX] ✅")
                         toggleUI:Lock()
@@ -2394,6 +2422,7 @@ Window:OnDestroy(function()
 	State.YenSelectedMastery = false
 	State.YenSelectedCritical = false
 	State.YenSelectedDamage = false
+    State.YenUpgradeState = {}
 	State.GachaState = {}
     State.TrainerState = {}
 	State.AutoEquipBest = false
