@@ -19,12 +19,13 @@ local Window = WindUI:CreateWindow({
 	SideBarWidth = 150,
 	Theme = "Dark", -- Dark, Darker, Light, Aqua, Amethyst, Rose
 	Size = UDim2.fromOffset(800, 400),
+	SizeMin = UDim2.fromOffset(800, 400),
 	-- Topbar = {
 	-- 	Height = 44,
 	-- 	ButtonsType = "Mac", -- Default or Mac
 	-- },
 	OpenButton = {
-		Title = "Dek",
+		Title = "DEK",
 		CornerRadius = UDim.new(0, 16),
 		StrokeThickness = 2,
 		Color = ColorSequence.new(Color3.fromHex("#FFFFFF"), Color3.fromHex("#FFFFFF")),
@@ -44,9 +45,11 @@ local Players = game:GetService("Players")
 local LP = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage");
 local ConfigsPath = ReplicatedStorage.Scripts.Configs;
+
 local YenModule = require(ConfigsPath.Machines.YenUpgrades);
 local YenUpgradeConfig = YenModule.Config;
 local TokenModule = require(ConfigsPath.Machines.TokenUpgrades);
+local TokenUpgradeConfig = TokenModule.Config;
 local RankModule = require(ConfigsPath.Machines.RankUp);
 local UtilsModule = require(ConfigsPath.Utility.Utils);
 ----------------------------------------------------------------
@@ -83,7 +86,8 @@ local State = {
 	YenSelectedMastery = false,
 	YenSelectedCritical = false,
 	YenSelectedDamage = false,
-    YenUpgradeState = {},
+	YenUpgradeState = {},
+	TokenUpgradeState = {},
 	GachaState = {},
 	TrainerState = {},
 	AutoEquipBest = false,
@@ -664,6 +668,13 @@ local EnemyMaster = {
 --     end
 --     return tostring(math.floor(value)) -- ปัดเศษจำนวนเต็มลงด้วย
 -- end
+local MaxRankCap = RankModule.MAX or 33;
+local function GetRankRequirement(rank)
+	return RankModule.GetRequirement(rank);
+end;
+local function GetRankBuff(rank)
+	return RankModule.GetBuff(rank);
+end;
 local function FormatNumber(n)
 	return UtilsModule.ToText(n);
 end;
@@ -673,12 +684,16 @@ end;
 local function GetYenBuff(name, lvl)
 	return YenModule.GetUpgradeBuff(name, lvl);
 end;
-local function GetTokenCost(lvl)
-	return TokenModule.GetUpgradeCost(lvl);
-end;
-local function GetTokenBuff(name, lvl)
-	return TokenModule.GetUpgradeBuff(name, lvl);
-end;
+-- local function GetTokenCost(lvl)
+-- 	return TokenModule.GetUpgradeCost(lvl);
+-- end;
+-- local function GetTokenBuff(name, lvl)
+-- 	return TokenModule.GetUpgradeBuff(name, lvl);
+-- end;
+
+local GetTokenCost = TokenModule.GetUpgradeCost
+local GetTokenBuff = TokenModule.GetUpgradeBuff
+-- local FormatNumber = UtilsModule.ToText
 ----------------------------------------------------------------
 -- Get Zone
 ----------------------------------------------------------------
@@ -871,23 +886,22 @@ FarmTab:Toggle({
 -- 	end
 -- end
 local function TPToEnemy(enemy, range)
-    local character = game.Players.LocalPlayer.Character
-    local hrp = enemy:FindFirstChild("HumanoidRootPart")
-    local lp = character and character:FindFirstChild("HumanoidRootPart")
-
-    if hrp and lp then
+	local character = game.Players.LocalPlayer.Character
+	local hrp = enemy:FindFirstChild("HumanoidRootPart")
+	local lp = character and character:FindFirstChild("HumanoidRootPart")
+	if hrp and lp then
         -- 1. หยุดแรงเฉื่อยทั้งหมด (แก้ปัญหาวาร์ปแล้วเด้ง/สั่น)
-        lp.Velocity = Vector3.new(0, 0, 0)
-        lp.RotVelocity = Vector3.new(0, 0, 0) -- หยุดแรงหมุนด้วย
+		lp.Velocity = Vector3.new(0, 0, 0)
+		lp.RotVelocity = Vector3.new(0, 0, 0) -- หยุดแรงหมุนด้วย
 
         -- 2. ปรับตำแหน่งการวาร์ป (Offset)
         -- แนะนำให้เปลี่ยนจากด้านหน้า (0,0,range) เป็น "เหนือหัวและเยื้องหลัง"
         -- เช่น CFrame.new(0, 5, 2) จะทำให้เราลอยอยู่เหนือมอนสเตอร์เล็กน้อย ลดการชน (Collision)
-        local targetCFrame = hrp.CFrame * CFrame.new(0, 0, range) -- วาร์ปไปเหนือหัวมอนสเตอร์ 5 หน่วย
+		local targetCFrame = hrp.CFrame * CFrame.new(0, 0, range) -- วาร์ปไปเหนือหัวมอนสเตอร์ 5 หน่วย
 
         -- 3. สั่งวาร์ป
-        lp.CFrame = targetCFrame
-    end
+		lp.CFrame = targetCFrame
+	end
 end
 ----------------------------------------------------------------
 -- Is Enemy Dead
@@ -1438,7 +1452,6 @@ task.spawn(function()
 					State.Mode = "GAMEMODE"
 				end
 				if State.AutoEquipBest then
-                    task.wait(3)
 					ApplyVaultEquipBest("Damage")
 				end
 			end
@@ -1454,7 +1467,7 @@ task.spawn(function()
 		else
 			if State.Mode == "GAMEMODE" then
 				if State.AutoEquipBest then
-                    task.wait(3)
+					task.wait(3)
 					ApplyVaultEquipBest("Mastery")
 				end
 				-- State.MasteryBuffApplied = true
@@ -1487,19 +1500,36 @@ local StatusTab = Window:Tab({
 -- Toggle: Upgrade Tab Group1
 ----------------------------------------------------------------
 StatusTab:Section({
-	Title = "Auto Upgrade",
+	Title = "Rank Up",
 	TextSize = 14,
 })
-local StatusTabGroup1 = StatusTab:Group({})
-
-StatusTabGroup1:Toggle({
-	Title = "Auto RankUp (Mastery)",
+local RankProgressUI = StatusTab:Paragraph({
+	Title = "Rank Progress",
+	Desc = "Loading data...",
+	Image = "arrow-up-1-0",
+	ImageSize = 32 
+})
+StatusTab:Toggle({
+	Title = "Auto Rank Up",
 	Value = false,
 	Callback = function(v)
 		State.AutoRankUp = v
 	end
 })
-StatusTabGroup1:Dropdown({
+----------------------------------------------------------------
+-- 
+----------------------------------------------------------------
+StatusTab:Section({
+	Title = "Stats",
+	TextSize = 14,
+})
+local StatsProgressUI = StatusTab:Paragraph({
+	Title = "Stats Progress",
+	Desc = "Loading data...",
+	Image = "coins",
+	ImageSize = 32 
+})
+StatusTab:Dropdown({
 	Title = "Auto Upgrade Stats",
 	Values = {
 		"--",
@@ -1522,137 +1552,235 @@ StatusTabGroup1:Dropdown({
 ----------------------------------------------------------------
 -- ฟังก์ชันคำนวณราคาตาม Module ที่คุณส่งมา
 ----------------------------------------------------------------
-
 local YenToggleUI = {}
-local YenUpgradeNames = {"Luck", "Yen", "Mastery", "Critical", "Damage"}
+local YenUpgradeNames = {
+	"Luck",
+	"Yen",
+	"Mastery",
+	"Critical",
+	"Damage"
+}
 
-StatusTab:Section({ Title = "Yen Upgrades", TextSize = 14 })
+StatusTab:Section({
+	Title = "Yen Upgrades",
+	TextSize = 14
+})
 local currentGroup = nil
 
+local YenProgressUI = StatusTab:Paragraph({
+	Title = "Yen Progress",
+	Desc = "Loading data...",
+	Image = "badge-japanese-yen",
+	ImageSize = 32 
+})
+
 for i, name in ipairs(YenUpgradeNames) do
-    if i % 2 == 1 then
-        currentGroup = StatusTab:Group({})
-    end
-    
-    State.YenUpgradeState[name] = false
-    YenToggleUI[name] = currentGroup:Toggle({
-        Title = name,
-        Value = false,
-        Callback = function(v)
-            State.YenUpgradeState[name] = v
-        end
-    })
+	if i % 2 == 1 then
+		currentGroup = StatusTab:Group({})
+	end
+	State.YenUpgradeState[name] = false
+	YenToggleUI[name] = currentGroup:Toggle({
+		Title = name,
+		Value = false,
+		Callback = function(v)
+			State.YenUpgradeState[name] = v
+		end
+	})
+end
+----------------------------------------------------------------
+-- Toggle: Auto Token Upgrades
+----------------------------------------------------------------
+local TokenToggleUI = {}
+local TokenUpgradeNames = {
+	"Run Speed",
+	"Luck",
+	"Yen",
+	"Mastery",
+	"Drop",
+	"Critical",
+	"Damage"
+}
+
+StatusTab:Section({
+	Title = "Token Upgrades",
+	TextSize = 14
+})
+local currentGroup = nil
+
+local TokenProgressUI = StatusTab:Paragraph({
+	Title = "Yen Progress",
+	Desc = "Loading data...",
+	Image = "geist:chevron-double-up",
+	ImageSize = 32 
+})
+
+for i, name in ipairs(TokenUpgradeNames) do
+	if i % 2 == 1 then
+		currentGroup = StatusTab:Group({})
+	end
+	State.TokenUpgradeState[name] = false
+	TokenToggleUI[name] = currentGroup:Toggle({
+		Title = name,
+		Value = false,
+		Callback = function(v)
+			State.TokenUpgradeState[name] = v
+		end
+	})
 end
 ----------------------------------------------------------------
 -- ฟังก์ชันคำนวณราคาตาม Module ที่คุณส่งมา
 ----------------------------------------------------------------
 task.spawn(function()
-    local PlayerData = nil
-    while true do
-        if Window.Destroyed then break end
+	local PlayerData = nil
+	while true do
+		if Window.Destroyed then
+			break
+		end
+		if not Window.Closed then
+			for _, v in pairs(getgc(true)) do
+				if type(v) == "table" and rawget(v, "Attributes") and rawget(v, "YenUpgrades") then
+					PlayerData = v
+					break
+				end
+			end
+			if PlayerData and PlayerData.Attributes then
+				local currentRank = PlayerData.Attributes.Rank or 0
+				local currentMastery = PlayerData.Attributes.Mastery or 0
+                
+                -- ดึงค่าจาก Module ที่ส่งมา
+				local req = GetRankRequirement(currentRank) or 1
+				local currentBuff = GetRankBuff(currentRank) or 0
+				local nextBuff = GetRankBuff(currentRank + 1) or 0
+				pcall(function()
+                    -- คำนวณเปอร์เซ็นต์ (Mastery / Requirement)
+					local percent = math.clamp(currentMastery / req, 0, 1)
+					local barText = string.rep("█", math.floor(percent * 10)) .. string.rep("▒", 10 - math.floor(percent * 10))
+                    
+                    -- จัดการข้อความ Buff (Mastery ของเกมนี้ Buff เพิ่มขึ้นแบบ 2^(n-1))
+					local buffText = ""
+					if currentRank >= MaxRankCap then
+						buffText = string.format("Buff: %s%% (MAX)", FormatNumber(currentBuff))
+					else
+						buffText = string.format("Buff: %s%% ➔ %s%%", FormatNumber(currentBuff), FormatNumber(nextBuff))
+					end
+    
+                    -- อัปเดต UI ให้สวยเหมือน anui
+					RankProgressUI:SetTitle(string.format("Rank %d", currentRank))
+					RankProgressUI:SetDesc(string.format("%s\n[%s] %d%%\n%s / %s", buffText, barText, math.floor(percent * 100), FormatNumber(currentMastery), FormatNumber(req)))
+				end)
+                
+                -- -- ระบบ Auto Rank Up
+                -- if State.AutoRankUp and currentMastery >= req then
+                --     -- ตรวจสอบว่า Rank ยังไม่เต็ม
+                --     if currentRank < MaxRankCap then
+                --         Reliable:FireServer("Rank Up") -- ส่ง Remote ไปอัปเกรด
+                --         task.wait(0.5)
+                --     end
+                -- end
+			end
+			-- ภายใน Loop task.spawn หลักที่เช็ค PlayerData
+			if PlayerData and PlayerData.Attributes and PlayerData.StatPoints then
+                -- 1. คำนวณแต้มคงเหลือ (Points Available) ตามสูตรของเกม
+				local lv = PlayerData.Attributes.Level or 1
+				local asc = PlayerData.Attributes.Ascension or 0
+				local totalPoints = lv * (1 + asc)
+				local spentPoints = 0
+				for _, amount in pairs(PlayerData.StatPoints) do
+					spentPoints = spentPoints + amount
+				end
+				local pointsAvailable = totalPoints - spentPoints
 
-        for _, v in pairs(getgc(true)) do
-            if type(v) == "table" and rawget(v, "Attributes") and rawget(v, "YenUpgrades") then
-                PlayerData = v
-                break
-            end
-        end
+                -- 2. ดึงเลเวลของแต่ละสาย (ใช้ชื่อตามหน้า UI)
+				local masteryLv = PlayerData.StatPoints.Mastery or 1
+				local damageLv = PlayerData.StatPoints.Damage or 1
+				local luckLv = PlayerData.StatPoints.Luck or 1
+				local yenLv = PlayerData.StatPoints.Yen or 1
 
-        if PlayerData then
-            local YenUpgrades = PlayerData.YenUpgrades or {}
+                -- 3. เตรียมข้อความสรุป (ใช้สูตร Buff Lv * 5 ตามสคริปต์เกม)
+				local descText = string.format("✨ Points Available: %d\n🔮 Mastery Lv.%d | Buff: +%d%%\n⚔️ Damage Lv.%d | Buff: +%d%%\n🍀 Luck Lv.%d | Buff: +%d%%\n💰 Yen Lv.%d | Buff: +%d%%", pointsAvailable, masteryLv, masteryLv * 5, damageLv, damageLv * 5, luckLv, luckLv * 5, yenLv, yenLv * 5)
 
-            for name, toggleUI in pairs(YenToggleUI) do
-                local currentLevel = YenUpgrades[name] or 0
-                local maxLevel = YenUpgradeConfig[name].MaxLevel or 0
-
-                pcall(function()
-                    -- 1. จัดการ Title และสถานะ MAX
-                    if currentLevel == nil then
-                        toggleUI:SetTitle(name .. " 🔒")
-                        toggleUI:SetDesc("Status: Locked")
-                        toggleUI:Lock()
-                    elseif currentLevel >= maxLevel then
-                        toggleUI:SetTitle(name .. " [MAX] ✅")
-                        toggleUI:SetDesc(string.format("Buff: +%s%%", GetYenBuff(name, currentLevel)))
-                        toggleUI:Lock()
-                        if State["YenSelected" .. name] then
-                            State["YenSelected" .. name] = false
-                            toggleUI:Set(false)
-                        end
-                    else
-                        local cost = GetYenCost(currentLevel);
-                        toggleUI:SetTitle(name .. " [" .. currentLevel .. "/" .. maxLevel .. "]")
-                        toggleUI:SetDesc(string.format("Cost: %s | (Buff: +%s%%)", FormatNumber(cost), FormatNumber(GetYenBuff(name, currentLevel))))
-                        toggleUI:Unlock()
-                    end
-                end)
-            end
-        end
-
-        task.wait(1)
-    end
+                -- 4. อัปเดตลงใน UI
+				pcall(function()
+					StatsProgressUI:SetTitle("📊 Character Stats Overview")
+					StatsProgressUI:SetDesc(descText)
+				end)
+			end
+			if PlayerData.YenUpgrades then
+				local YenUpgrades = PlayerData.YenUpgrades or {}
+    
+                -- [ส่วนที่เพิ่ม] ดึงยอดเงินปัจจุบันมาแสดงผลที่หัวข้อใหญ่
+				local currentYen = PlayerData.Attributes and PlayerData.Attributes.Yen or 0
+				YenProgressUI:SetTitle(string.format("Yen", FormatNumber(currentYen)))
+				YenProgressUI:SetDesc(string.format("Amount: %s", FormatNumber(currentYen)))
+				for name, toggleUI in pairs(YenToggleUI) do
+					local currentLevel = YenUpgrades[name] or 0
+					local maxLevel = YenUpgradeConfig[name].MaxLevel or 0
+					pcall(function()
+                        -- 1. จัดการ Title และสถานะ MAX
+						if currentLevel == nil then
+							toggleUI:SetTitle(name .. " 🔒")
+							toggleUI:SetDesc("Status: Locked")
+							toggleUI:Lock()
+						elseif currentLevel >= maxLevel then
+							toggleUI:SetTitle(name .. " [MAX] ✅")
+							toggleUI:SetDesc(string.format("Buff: +%s%%", GetYenBuff(name, currentLevel)))
+							toggleUI:Lock()
+							if State["YenSelected" .. name] then
+								State["YenSelected" .. name] = false
+								toggleUI:Set(false)
+							end
+						else
+							local cost = GetYenCost(currentLevel);
+							toggleUI:SetTitle(name .. " [" .. currentLevel .. "/" .. maxLevel .. "]")
+							toggleUI:SetDesc(string.format("Cost: %s | Buff: +%s%%", FormatNumber(cost), FormatNumber(GetYenBuff(name, currentLevel))))
+							toggleUI:Unlock()
+						end
+					end)
+				end
+			end
+			if PlayerData.TokenUpgrades then
+				local TokenUpgrades = PlayerData.TokenUpgrades
+				for name, toggleUI in pairs(TokenToggleUI) do
+					local currentLevel = TokenUpgrades[name]
+					local config = TokenUpgradeConfig[name]
+					local maxLevel = config and config.MaxLevel or 0
+    
+            -- [ส่วนที่เพิ่ม] ดึงยอดเงินปัจจุบันมาแสดงผลที่หัวข้อใหญ่
+					local currentToken = PlayerData.Materials and PlayerData.Materials.UpgradeToken or 0
+					TokenProgressUI:SetTitle(string.format("Upgrade Shard", FormatNumber(currentToken)))
+					TokenProgressUI:SetDesc(string.format("Amount: %s", FormatNumber(currentToken)))
+					pcall(function()
+						if currentLevel == nil then
+                    -- สถานะล็อก (🔒)
+							toggleUI:SetTitle(name .. " 🔒")
+							toggleUI:SetDesc("Status: Locked")
+							toggleUI:Lock()
+						elseif currentLevel >= maxLevel then
+                    -- สถานะอัปเกรดเต็ม (MAX)
+							toggleUI:SetTitle(name .. " [MAX] ✅")
+                    -- ดึงค่า Buff มาแสดงผล
+							local buffValue = GetTokenBuff(name, currentLevel)
+							toggleUI:SetDesc(string.format("Buff: +%s%%", FormatNumber(buffValue)))
+							toggleUI:Lock()
+						else
+                    -- สถานะกำลังอัปเกรด
+							toggleUI:Unlock()
+							toggleUI:SetTitle(name .. " [" .. currentLevel .. "/" .. maxLevel .. "]")
+                    
+                    -- สำคัญ: ตรวจสอบว่า GetTokenCost ต้องการ (level, name) หรือไม่
+							local cost = GetTokenCost(currentLevel, name)
+							local buffValue = GetTokenBuff(name, currentLevel)
+                    
+                    -- แสดงข้อมูลราคา, บัฟ และจำนวน Token ที่มี
+							toggleUI:SetDesc(string.format("Cost: %s | Buff: +%s%%", FormatNumber(cost), FormatNumber(buffValue)))
+						end
+					end)
+				end
+			end
+		end
+		task.wait(1)
+	end
 end)
-----------------------------------------------------------------
--- Toggle: Auto Token Upgrades
-----------------------------------------------------------------
-StatusTab:Section({
-	Title = "Token Upgrades",
-	TextSize = 14,
-})
-local StatusTabGroup5 = StatusTab:Group({})
-local StatusTabGroup6 = StatusTab:Group({})
-local StatusTabGroup7 = StatusTab:Group({})
-local StatusTabGroup8 = StatusTab:Group({})
-
-StatusTabGroup5:Toggle({
-	Title = "Run Speed",
-	Justify = "Center",
-	Callback = function(v)
-		State.TokenSelectedRunSpeed = v
-	end
-})
-StatusTabGroup5:Toggle({
-	Title = "Luck",
-	Justify = "Center",
-	Callback = function(v)
-		State.TokenSelectedLuck = v
-	end
-})
-StatusTabGroup6:Toggle({
-	Title = "Yen",
-	Justify = "Center",
-	Callback = function(v)
-		State.TokenSelectedYen = v
-	end
-})
-StatusTabGroup6:Toggle({
-	Title = "Mastery",
-	Justify = "Center",
-	Callback = function(v)
-		State.TokenSelectedMastery = v
-	end
-})
-StatusTabGroup7:Toggle({
-	Title = "Drop",
-	Justify = "Center",
-	Callback = function(v)
-		State.TokenSelectedDrop = v
-	end
-})
-StatusTabGroup7:Toggle({
-	Title = "Critical",
-	Justify = "Center",
-	Callback = function(v)
-		State.TokenSelectedCritical = v
-	end
-})
-StatusTabGroup8:Toggle({
-	Title = "Damage",
-	Justify = "Center",
-	Callback = function(v)
-		State.TokenSelectedDamage = v
-	end
-})
 ----------------------------------------------------------------
 -- Has Available Stats Points
 ----------------------------------------------------------------
@@ -1713,68 +1841,109 @@ end
 ----------------------------------------------------------------
 -- Loop Tap 3
 ----------------------------------------------------------------
--- task.spawn(function()
--- 	while true do
--- 		if Window.Destroyed then
--- 			break;
--- 		end;
--- 		task.wait(2)
---         -- if State.Mode == "WORLD" then
-    
---             -- 🔼 RankUp (Server จะเช็ค mastery เต็มเอง)
--- 		if State.AutoRankUp then
--- 			ReliableRemote:FireServer("RankUp", {})
--- 		end
--- 		if State.SelectedStat then
---                 -- เช็คก่อนเสมอ
--- 			if HasAvailableStatPoints() then
---                     -- อัปทีละ 1 (ปลอดภัยสุด)
--- 				ReliableRemote:FireServer("Distribute Stat Point", {
--- 					State.SelectedStat,
--- 					1
--- 				})
--- 			end
--- 		end
--- 		if State.YenSelectedLuck then
--- 			FireYenUpgrade("Luck")
--- 		end
--- 		if State.YenSelectedYen then
--- 			FireYenUpgrade("Yen")
--- 		end
--- 		if State.YenSelectedMastery then
--- 			FireYenUpgrade("Mastery")
--- 		end
--- 		if State.YenSelectedCritical then
--- 			FireYenUpgrade("Critical")
--- 		end
--- 		if State.YenSelectedDamage then
--- 			FireYenUpgrade("Damage")
--- 		end
--- 		if State.TokenSelectedRunSpeed then
--- 			FireTokenUpgrade("Run Speed")
--- 		end
--- 		if State.TokenSelectedLuck then
--- 			FireTokenUpgrade("Luck")
--- 		end
--- 		if State.TokenSelectedYen then
--- 			FireTokenUpgrade("Yen")
--- 		end
--- 		if State.TokenSelectedMastery then
--- 			FireTokenUpgrade("Mastery")
--- 		end
--- 		if State.TokenSelectedDrop then
--- 			FireTokenUpgrade("Drop")
--- 		end
--- 		if State.TokenSelectedCritical then
--- 			FireTokenUpgrade("Critical")
--- 		end
--- 		if State.TokenSelectedDamage then
--- 			FireTokenUpgrade("Damage")
--- 		end
--- 	end
+----------------------------------------------------------------
+-- [แยกส่วน] Loop สำหรับระบบ Auto Upgrade (Background Logic)
+----------------------------------------------------------------
+task.spawn(function()
+    local PlayerData = nil
+    while true do
+        if Window.Destroyed then break end
+        
+        -- ทำงานเฉพาะเมื่อเปิดใช้งาน Auto ใดๆ อยู่ (ลดการทำงาน CPU)
+        local isAnyAutoEnabled = State.AutoRankUp or State.SelectedStat 
+            or next(State.YenUpgradeState) or next(State.TokenUpgradeState)
 
--- 	-- end
--- end)
+        if isAnyAutoEnabled then
+            -- ใช้ PlayerData ที่เราสแกนเจอจาก Loop UI (แชร์ข้อมูลกัน)
+            for _, v in pairs(getgc(true)) do
+				if type(v) == "table" and rawget(v, "Attributes") and rawget(v, "YenUpgrades") then
+					PlayerData = v
+					break
+				end
+			end
+            
+            if PlayerData and PlayerData.Attributes then
+                -- --- [ 1. Auto Rank Up ] ---
+                if State.AutoRankUp then
+                    local currentRank = PlayerData.Attributes.Rank or 0
+                    local currentMastery = PlayerData.Attributes.Mastery or 0
+                    local req = GetRankRequirement(currentRank)
+                    
+                    -- เช็คว่า Rank ไม่ตัน และ Mastery ถึงเกณฑ์
+                    if currentRank < MaxRankCap and currentMastery >= (req or 0) then
+                        ReliableRemote:FireServer("RankUp", {})
+                        task.wait(0.3) -- รอเล็กน้อยหลังอัปเกรด
+                    end
+                end
+
+                -- --- [ 2. Auto Stats (Points) ] ---
+                -- ส่วนของ Auto Stats ในลูป Auto Upgrade
+                if State.SelectedStat and State.SelectedStat ~= "--" then
+                    pcall(function()
+                        -- 1. คำนวณหาแต้มคงเหลือจริง (Points Available)
+                        local lv = PlayerData.Attributes.Level or 1
+                        local asc = PlayerData.Attributes.Ascension or 0
+                        local totalPoints = lv * (1 + asc)
+                        
+                        local spentPoints = 0
+                        for _, amount in pairs(PlayerData.StatPoints) do
+                            spentPoints = spentPoints + amount
+                        end
+                        
+                        local pointsAvailable = totalPoints - spentPoints
+                    
+                        -- 2. ส่งคำสั่งอัปเกรดเมื่อมีแต้มเหลือ
+                        if pointsAvailable > 0 then
+                            -- ดึงจำนวนที่ต้องการอัปจาก StatPointAmount (ที่เราสแกนเจอว่าเป็น 19)
+                            local amountToUpgrade = PlayerData.Attributes.StatPointAmount or 1
+                            
+                            -- ตรวจสอบไม่ให้อัปเกินแต้มที่มีอยู่จริง
+                            local finalAmount = math.min(amountToUpgrade, pointsAvailable)
+                        
+                            ReliableRemote:FireServer("Distribute Stat Point", {
+                                State.SelectedStat,
+                                finalAmount -- อัปตามจำนวนที่กำหนด หรือเท่าที่แต้มเหลือ
+                            })
+                            task.wait(0.2) -- หน่วงเวลาเล็กน้อยเพื่อป้องกันการส่งซ้ำซ้อน
+                        end
+                    end)
+                end
+
+                -- --- [ 3. Auto Yen Upgrades ] ---
+                local currentYen = PlayerData.Attributes.Yen or 0
+                for name, isEnabled in pairs(State.YenUpgradeState) do
+                    if isEnabled then
+                        local currentLevel = PlayerData.YenUpgrades and PlayerData.YenUpgrades[name] or 0
+                        local maxLevel = YenUpgradeConfig[name] and YenUpgradeConfig[name].MaxLevel or 0
+                        local cost = GetYenCost(currentLevel, name)
+
+                        -- เช็คว่าไม่ตันและเงินพอ
+                        if currentLevel < maxLevel and currentYen >= (cost or 0) then
+                            FireYenUpgrade(name)
+                        end
+                    end
+                end
+
+                -- --- [ 4. Auto Token Upgrades ] ---
+                local currentToken = PlayerData.Materials and PlayerData.Materials.UpgradeToken or 0
+                for name, isEnabled in pairs(State.TokenUpgradeState) do
+                    if isEnabled then
+                        local currentLevel = PlayerData.TokenUpgrades and PlayerData.TokenUpgrades[name] or 0
+                        local maxLevel = TokenUpgradeConfig[name] and TokenUpgradeConfig[name].MaxLevel or 0
+                        local cost = GetTokenCost(currentLevel, name)
+
+                        -- เช็คว่าไม่ตันและ Token พอ
+                        if currentLevel < maxLevel and currentToken >= (cost or 0) then
+                            FireTokenUpgrade(name)
+                        end
+                    end
+                end
+            end
+        end
+
+        task.wait(0.5) -- ปรับความเร็วลูปให้พอดี (2 ครั้งต่อวินาที) ไม่กินสเปคเครื่อง
+    end
+end)
 ----------------------------------------------------------------
 -- Tab 4
 ----------------------------------------------------------------
@@ -1918,165 +2087,167 @@ end
 -- Loop
 ----------------------------------------------------------------
 task.spawn(function()
-    while true do
-        if Window.Destroyed then break end
-
-        local PlayerData = nil
-        for _, v in pairs(getgc(true)) do
-            if type(v) == "table" and rawget(v, "Attributes") and rawget(v, "YenUpgrades") then
-                PlayerData = v
-                break
-            end
-        end
-
-        if PlayerData then
+	while true do
+		if Window.Destroyed then
+			break
+		end
+		local PlayerData = nil
+		for _, v in pairs(getgc(true)) do
+			if type(v) == "table" and rawget(v, "Attributes") and rawget(v, "YenUpgrades") then
+				PlayerData = v
+				break
+			end
+		end
+		if PlayerData then
             -- A. อัปเดตจำนวนไอเท็ม และสถานะการปลดล็อก (Description)
-            if PlayerData.Materials then
-                for name, toggleUI in pairs(RollToggleUI) do
-                    local tokenKey = RollMaterialMap[name] or (name .. "Token")
-                    local materialDisplayName = RollMaterialNameMap[tokenKey] or tokenKey
-                    local currentAmount = PlayerData.Materials[tokenKey] or 0
-                    local formattedAmount = FormatNumber(currentAmount)
+			if PlayerData.Materials then
+				for name, toggleUI in pairs(RollToggleUI) do
+					local tokenKey = RollMaterialMap[name] or (name .. "Token")
+					local materialDisplayName = RollMaterialNameMap[tokenKey] or tokenKey
+					local currentAmount = PlayerData.Materials[tokenKey] or 0
+					local formattedAmount = FormatNumber(currentAmount)
 
                     -- เช็คสถานะการปลดล็อก (อ้างอิงจาก PlayerData.Vault หรือ Unlocked)
                     -- ปกติ Gacha จะเช็คว่ามีข้อมูลใน Vault หรือยัง
-                    local isUnlocked = PlayerData.Vault and PlayerData.Vault[name] ~= nil
-                    local statusIcon = isUnlocked and " " or " 🔒"
-
-                    pcall(function()
+					local isUnlocked = PlayerData.Vault and PlayerData.Vault[name] ~= nil
+					local statusIcon = isUnlocked and " " or " 🔒"
+					pcall(function()
                         -- 1. อัปเดต Title ให้มีไอคอนสถานะท้ายชื่อ
                         -- เช็คก่อนว่าตันหรือยัง ถ้ายังไม่ตันให้โชว์ /🔒
-                        local MaxLevelOverrides = { ["Race"] = "6" }
-                        local targetMaxLevel = MaxLevelOverrides[name] or "7"
-                        
-                        if PlayerData.Vault and PlayerData.Vault[name] and PlayerData.Vault[name][targetMaxLevel] == true then
-                            toggleUI:SetTitle(name .. " [MAX] ✅")
-                        else
-                            toggleUI:SetTitle(name .. statusIcon)
-                        end
+						local MaxLevelOverrides = {
+							["Race"] = "6"
+						}
+						local targetMaxLevel = MaxLevelOverrides[name] or "7"
+						if PlayerData.Vault and PlayerData.Vault[name] and PlayerData.Vault[name][targetMaxLevel] == true then
+							toggleUI:SetTitle(name .. " [MAX] ✅")
+						else
+							toggleUI:SetTitle(name .. statusIcon)
+						end
 
                         -- 2. อัปเดต Description โชว์ชื่อ Material และจำนวน
-                        toggleUI:SetDesc(materialDisplayName .. ": " .. formattedAmount)
+						toggleUI:SetDesc(materialDisplayName .. ": " .. formattedAmount)
 
                         -- 3. ล็อกปุ่มหากยังไม่ปลดล็อก
-                        if not isUnlocked then
-                            toggleUI:Lock()
-                        else
+						if not isUnlocked then
+							toggleUI:Lock()
+						else
                             -- ถ้าปลดแล้วแต่ยังไม่ MAX ให้ Unlock ปุ่ม
-                            if not (PlayerData.Vault[name] and PlayerData.Vault[name][targetMaxLevel] == true) then
-                                toggleUI:Unlock()
-                            end
-                        end
-                    end)
-                end
-            end
+							if not (PlayerData.Vault[name] and PlayerData.Vault[name][targetMaxLevel] == true) then
+								toggleUI:Unlock()
+							end
+						end
+					end)
+				end
+			end
 
             -- B. ระบบ Auto Close เมื่อเลเวลเต็ม (รันซ้ำเพื่อความปลอดภัย)
-            if PlayerData.Vault then
-                local MaxLevelOverrides = { ["Race"] = "6" }
-                for name, toggleUI in pairs(RollToggleUI) do
-                    local targetMaxLevel = MaxLevelOverrides[name] or "7"
-                    if PlayerData.Vault[name] and PlayerData.Vault[name][targetMaxLevel] == true then
-                        pcall(function()
-                            toggleUI:Lock()
-                            if State.GachaState[name] then
-                                State.GachaState[name] = false
-                                toggleUI:Set(false)
-                            end
-                        end)
-                    end
-                end
-            end
-        end
-        task.wait(1)
-    end
+			if PlayerData.Vault then
+				local MaxLevelOverrides = {
+					["Race"] = "6"
+				}
+				for name, toggleUI in pairs(RollToggleUI) do
+					local targetMaxLevel = MaxLevelOverrides[name] or "7"
+					if PlayerData.Vault[name] and PlayerData.Vault[name][targetMaxLevel] == true then
+						pcall(function()
+							toggleUI:Lock()
+							if State.GachaState[name] then
+								State.GachaState[name] = false
+								toggleUI:Set(false)
+							end
+						end)
+					end
+				end
+			end
+		end
+		task.wait(1)
+	end
 end)
 ----------------------------------------------------------------
 -- Loop auto gacha roll (เช็คจำนวนขั้นต่ำ 10 ชิ้น)
 ----------------------------------------------------------------
 task.spawn(function()
-    while true do
-        if Window.Destroyed then break end
+	while true do
+		if Window.Destroyed then
+			break
+		end
         
         -- ดึงข้อมูล PlayerData ล่าสุดจาก Environment
-        local PlayerData = nil
-        for _, v in pairs(getgc(true)) do
-            if type(v) == "table" and rawget(v, "Attributes") and rawget(v, "YenUpgrades") then
-                PlayerData = v
-                break
-            end
-        end
-        
-        for name, enabled in pairs(State.GachaState) do
-            if enabled then
+		local PlayerData = nil
+		for _, v in pairs(getgc(true)) do
+			if type(v) == "table" and rawget(v, "Attributes") and rawget(v, "YenUpgrades") then
+				PlayerData = v
+				break
+			end
+		end
+		for name, enabled in pairs(State.GachaState) do
+			if enabled then
                 -- 1. ค้นหาชื่อ Token และจำนวนที่มีปัจจุบัน
-                local tokenKey = RollMaterialMap[name] or (name .. "Token")
-                local currentAmount = (PlayerData and PlayerData.Materials and PlayerData.Materials[tokenKey]) or 0
+				local tokenKey = RollMaterialMap[name] or (name .. "Token")
+				local currentAmount = (PlayerData and PlayerData.Materials and PlayerData.Materials[tokenKey]) or 0
                 
                 -- 2. เงื่อนไข: ถ้าของมีตั้งแต่ 10 ชิ้นขึ้นไป ถึงจะส่ง Remote
-                if currentAmount >= 10 then
-                    local args = {
-                        [1] = "Crate Roll Start",
-                        [2] = {
-                            [1] = name,
-                            [2] = false,
-                        }
-                    }
-                    ReliableRemote:FireServer(unpack(args))
-                    task.wait(0.3) -- ดีเลย์ระหว่างการส่งแต่ละครั้ง
-                else
+				if currentAmount >= 10 then
+					local args = {
+						[1] = "Crate Roll Start",
+						[2] = {
+							[1] = name,
+							[2] = false,
+						}
+					}
+					ReliableRemote:FireServer(unpack(args))
+					task.wait(0.3) -- ดีเลย์ระหว่างการส่งแต่ละครั้ง
+				else
                     -- ถ้าไม่ถึง 10 จะข้ามไปเช็คตัวถัดไปทันที (ตามที่คุณต้องการ)
                     -- print("Skipping " .. name .. ": Not enough materials (" .. currentAmount .. "/10)")
-                end
-            end
-        end
-        
-        task.wait(0.5) -- รอบการกวาดเช็คทุกตัวในรายการ
-    end
+				end
+			end
+		end
+		task.wait(0.5) -- รอบการกวาดเช็คทุกตัวในรายการ
+	end
 end)
 ----------------------------------------------------------------
 -- [ส่วนเพิ่มเติม] ฟังก์ชันจัดการ UI ตอนสุ่ม (Anti-Animation)
 ----------------------------------------------------------------
 task.spawn(function()
-    local Players = game:GetService("Players")
-    local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
-
-    while true do
-        if Window.Destroyed then break end
+	local Players = game:GetService("Players")
+	local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+	while true do
+		if Window.Destroyed then
+			break
+		end
 
         -- 1. เช็คว่าตอนนี้เราเปิด Auto Roll ตัวไหนทิ้งไว้บ้างไหม
-        local isRolling = false
-        for name, isActive in pairs(State.GachaState) do
-            if isActive then
-                isRolling = true
-                break
-            end
-        end
+		local isRolling = false
+		for name, isActive in pairs(State.GachaState) do
+			if isActive then
+				isRolling = true
+				break
+			end
+		end
 
         -- 2. ถ้ากำลังสุ่มอยู่ ให้รันตรรกะปิด Animation และบังคับเปิด HUD
-        if isRolling then
+		if isRolling then
             -- ปิดหน้าต่างสุ่ม (Crate) เพื่อไม่ให้แสดง Animation
-            local CrateUI = PlayerGui:FindFirstChild("Crate")
-            if CrateUI then
-                CrateUI.Parent = nil
+			local CrateUI = PlayerGui:FindFirstChild("Crate")
+			if CrateUI then
+				CrateUI.Parent = nil
                 -- print("🚫 Animation Skipped!") -- เปิดไว้เช็คได้ครับ
-            end
+			end
 
             -- บังคับให้หน้าจอหลัก (HUD) แสดงผลตลอดเวลา
-            local ScreenUI = PlayerGui:FindFirstChild("Screen")
-            if ScreenUI and (not ScreenUI.Enabled) then
-                ScreenUI.Enabled = true
-            end
+			local ScreenUI = PlayerGui:FindFirstChild("Screen")
+			if ScreenUI and (not ScreenUI.Enabled) then
+				ScreenUI.Enabled = true
+			end
 
             -- บังคับเปิดแถบเมนูด้านบนของ Roblox
-            local Topbar = PlayerGui:FindFirstChild("TopbarStandard")
-            if Topbar and (not Topbar.Enabled) then
-                Topbar.Enabled = true
-            end
-        end
-
-        task.wait(0.5) -- เช็คทุกๆ 0.5 วินาทีตามต้นฉบับ
-    end
+			local Topbar = PlayerGui:FindFirstChild("TopbarStandard")
+			if Topbar and (not Topbar.Enabled) then
+				Topbar.Enabled = true
+			end
+		end
+		task.wait(0.5) -- เช็คทุกๆ 0.5 วินาทีตามต้นฉบับ
+	end
 end)
 ----------------------------------------------------------------
 -- Tab 5
@@ -2114,8 +2285,7 @@ local TrainerGroupConfig = {
 		"IceDragon",
 	},
 }
-local TrainerGroupOrder = {
-	-- "Shinobi Village",
+local TrainerGroupOrder = {-- "Shinobi Village",
 	"Namek Planet",
 	"Desert Land",
 	"Demon Land",
@@ -2132,23 +2302,23 @@ local TrainerToggleUI = {} -- ไว้เก็บ Toggle เพื่อเอ
 -- Mapping ชื่อปุ่ม กับ ชื่อไอเท็มใน Materials (ปรับให้ตรงกับชื่อใน Memory)
 local TrainerMaterialMap = {
 	["Wise"] = "WiseToken",
-    ["Pirate"] = "PirateToken",
-    ["Breath"] = "BreathToken",
-    ["Leve"] = "LeveToken",
-    ["Sung"] = "SungToken",
-    ["Sanli"] = "SanliToken",
-    ["IceDragon"] = "IceDragonToken",
+	["Pirate"] = "PirateToken",
+	["Breath"] = "BreathToken",
+	["Leve"] = "LeveToken",
+	["Sung"] = "SungToken",
+	["Sanli"] = "SanliToken",
+	["IceDragon"] = "IceDragonToken",
     -- เพิ่มตัวอื่นๆ ให้ตรงกับชื่อที่ดึงได้จาก getgc
 }
 
 local TrainerMaterialNameMap = {
 	["WiseToken"] = "Wise Token",
-    ["PirateToken"] = "Pirate Shard",
-    ["BreathToken"] = "Breath Stone",
-    ["LeveToken"] = "Leve Token",
-    ["SungToken"] = "Sung Shard",
-    ["SanliToken"] = "Sanli Fragment",
-    ["IceDragonToken"] = "Ice Dragon Shard",
+	["PirateToken"] = "Pirate Shard",
+	["BreathToken"] = "Breath Stone",
+	["LeveToken"] = "Leve Token",
+	["SungToken"] = "Sung Shard",
+	["SanliToken"] = "Sanli Fragment",
+	["IceDragonToken"] = "Ice Dragon Shard",
     -- เพิ่มตัวอื่นๆ ให้ตรงกับชื่อที่ดึงได้จาก getgc
 }
 ----------------------------------------------------------------
@@ -2178,136 +2348,136 @@ for _, mapName in ipairs(TrainerGroupOrder) do
 	end
 end
 ----------------------------------------------------------------
--- Tab 6
+-- 
 ----------------------------------------------------------------
 task.spawn(function()
-    while true do
-        if Window.Destroyed then break end
-
-        local PlayerData = nil
-        for _, v in pairs(getgc(true)) do
-            if type(v) == "table" and rawget(v, "Attributes") and rawget(v, "YenUpgrades") then
-                PlayerData = v
-                break
-            end
-        end
-
-        if PlayerData then
-            local TrainerLevels = PlayerData.CrateUpgrades or {}
-            local UnlockedData = PlayerData.Unlocked or {}
-
-            for name, toggleUI in pairs(TrainerToggleUI) do
-                local currentLevel = TrainerLevels[name] or 0
-                local isUnlocked = UnlockedData[name] == true
-                local maxLevel = 100
-                
-                pcall(function()
-                    -- 1. จัดการ Title และสถานะ (ย้าย 🔒/✅ ไปไว้หลังชื่อ)
-                    local statusIcon = isUnlocked and " " or " 🔒"
-                    if currentLevel >= maxLevel then
-                        toggleUI:SetTitle(name .. " [MAX] ✅")
-                        toggleUI:Lock()
-                        if State.TrainerState[name] then
-                            State.TrainerState[name] = false
-                            toggleUI:Set(false)
-                        end
-                    else
-                        -- แสดงชื่อ [Level/100] ตามด้วยสถานะ Unlocked/Locked
-                        toggleUI:SetTitle(name .. " [" .. tostring(currentLevel) .. "/100]" .. statusIcon)
+	while true do
+		if Window.Destroyed then
+			break
+		end
+		if not Window.Closed then
+			local PlayerData = nil
+			for _, v in pairs(getgc(true)) do
+				if type(v) == "table" and rawget(v, "Attributes") and rawget(v, "YenUpgrades") then
+					PlayerData = v
+					break
+				end
+			end
+			if PlayerData then
+				local TrainerLevels = PlayerData.CrateUpgrades or {}
+				local UnlockedData = PlayerData.Unlocked or {}
+				for name, toggleUI in pairs(TrainerToggleUI) do
+					local currentLevel = TrainerLevels[name] or 0
+					local isUnlocked = UnlockedData[name] == true
+					local maxLevel = 100
+					pcall(function()
+                        -- 1. จัดการ Title และสถานะ (ย้าย 🔒/✅ ไปไว้หลังชื่อ)
+						local statusIcon = isUnlocked and " " or " 🔒"
+						if currentLevel >= maxLevel then
+							toggleUI:SetTitle(name .. " [MAX] ✅")
+							toggleUI:Lock()
+							if State.TrainerState[name] then
+								State.TrainerState[name] = false
+								toggleUI:Set(false)
+							end
+						else
+                            -- แสดงชื่อ [Level/100] ตามด้วยสถานะ Unlocked/Locked
+							toggleUI:SetTitle(name .. " [" .. tostring(currentLevel) .. "/100]" .. statusIcon)
+							if not isUnlocked then
+								toggleUI:Lock()
+							else
+								toggleUI:Unlock()
+							end
+						end
+    
+                        -- 2. คำนวณ Cost และ Chance (ปรับปรุงตาม Module Sung Trainer)
+                        -- สูตร Cost: (Level ^ 1) * 1 + 9
+						local cost = math.ceil(currentLevel ^ 1) + 9 
                         
-                        if not isUnlocked then toggleUI:Lock() else toggleUI:Unlock() end
-                    end
-
-                    -- 2. คำนวณ Cost และ Chance (ปรับปรุงตาม Module Sung Trainer)
-                    -- สูตร Cost: (Level ^ 1) * 1 + 9
-                    local cost = math.ceil(currentLevel ^ 1) + 9 
-                    
-                    -- สูตร Chance: 90 * v_u_2 ^ (Level - 1)
-                    local v_u_2 = 0.05555555555555555 ^ (1 / (maxLevel - 1))
-                    -- ต้องใช้ currentLevel - 1 เพื่อให้ตรงกับ GetChance(p5)
-                    local chance = 90 * v_u_2 ^ (currentLevel - 1) 
-                    
-                    -- กันค่าติดลบตาม Module
-                    chance = math.max(0, chance)
-
-                    -- 3. จัดการ Description (แสดงชื่อ Material จริง และรายละเอียด)
-                    local tokenKey = TrainerMaterialMap[name] or (name .. "Token")
-                    local currentAmount = PlayerData.Materials[tokenKey] or 0
-
-                    
-                    -- ดึงชื่อ Material มาแสดง (เช่น WiseToken, BreathToken)
-                    local materialDisplayName = TrainerMaterialNameMap[tokenKey] or tokenKey
-                    local formattedAmount = FormatNumber(currentAmount)
-                    
-                    local detailText = ""
-                    if currentLevel < maxLevel then
-                        detailText = string.format("\nCost: %d | Chance: %.1f%%", cost, chance)
-                    else
-                        detailText = "\n✨ Trainer is fully upgraded!"
-                    end
-
-                    -- แสดงชื่อ Material จริงๆ แทนคำว่า Mat
-                    toggleUI:SetDesc(string.format("%s: %s%s", materialDisplayName, formattedAmount, detailText))
-                end)
-            end
-        end
-
-        task.wait(1)
-    end
+                        -- สูตร Chance: 90 * v_u_2 ^ (Level - 1)
+						local v_u_2 = 0.05555555555555555 ^ (1 / (maxLevel - 1))
+                        -- ต้องใช้ currentLevel - 1 เพื่อให้ตรงกับ GetChance(p5)
+						local chance = 90 * v_u_2 ^ (currentLevel - 1) 
+                        
+                        -- กันค่าติดลบตาม Module
+						chance = math.max(0, chance)
+    
+                        -- 3. จัดการ Description (แสดงชื่อ Material จริง และรายละเอียด)
+						local tokenKey = TrainerMaterialMap[name] or (name .. "Token")
+						local currentAmount = PlayerData.Materials[tokenKey] or 0
+    
+                        
+                        -- ดึงชื่อ Material มาแสดง (เช่น WiseToken, BreathToken)
+						local materialDisplayName = TrainerMaterialNameMap[tokenKey] or tokenKey
+						local formattedAmount = FormatNumber(currentAmount)
+						local detailText = ""
+						if currentLevel < maxLevel then
+							detailText = string.format("\nCost: %d | Chance: %.1f%%", cost, chance)
+						else
+							detailText = "\n✨ Trainer is fully upgraded!"
+						end
+    
+                        -- แสดงชื่อ Material จริงๆ แทนคำว่า Mat
+						toggleUI:SetDesc(string.format("%s: %s%s", materialDisplayName, formattedAmount, detailText))
+					end)
+				end
+			end
+		end
+		task.wait(1)
+	end
 end)
 ----------------------------------------------------------------
 -- Loop auto upgrade trainer
 ----------------------------------------------------------------
 task.spawn(function()
-    while true do
-        if Window.Destroyed then break end
+	while true do
+		if Window.Destroyed then
+			break
+		end
         
         -- ดึงข้อมูล PlayerData ล่าสุดจากถังข้อมูลกลาง
-        local PlayerData = nil
-        for _, v in pairs(getgc(true)) do
-            if type(v) == "table" and rawget(v, "Attributes") and rawget(v, "YenUpgrades") then
-                PlayerData = v
-                break
-            end
-        end
-        
-        if PlayerData then
-            for name, enabled in pairs(State.TrainerState) do
-                if enabled then
+		local PlayerData = nil
+		for _, v in pairs(getgc(true)) do
+			if type(v) == "table" and rawget(v, "Attributes") and rawget(v, "YenUpgrades") then
+				PlayerData = v
+				break
+			end
+		end
+		if PlayerData then
+			for name, enabled in pairs(State.TrainerState) do
+				if enabled then
                     -- 1. ดึงเลเวลปัจจุบันจาก CrateUpgrades
-                    local currentLevel = (PlayerData.CrateUpgrades and PlayerData.CrateUpgrades[name]) or 0
-                    local maxLevel = 100
-
-                    if currentLevel < maxLevel then
+					local currentLevel = (PlayerData.CrateUpgrades and PlayerData.CrateUpgrades[name]) or 0
+					local maxLevel = 100
+					if currentLevel < maxLevel then
                         -- 2. คำนวณราคาที่ต้องใช้ตามสูตร (Level ^ 1) + 9
-                        local cost = math.ceil(currentLevel ^ 1) + 9
+						local cost = math.ceil(currentLevel ^ 1) + 9
 
                         -- 3. ตรวจสอบจำนวน Material ที่มี
-                        local tokenKey = TrainerMaterialMap[name] or (name .. "Token")
-                        local currentAmount = (PlayerData.Materials and PlayerData.Materials[tokenKey]) or 0
+						local tokenKey = TrainerMaterialMap[name] or (name .. "Token")
+						local currentAmount = (PlayerData.Materials and PlayerData.Materials[tokenKey]) or 0
 
                         -- 4. เงื่อนไข: ถ้าของมีพอให้ทำการอัปเกรด
-                        if currentAmount >= cost then
-                            local args = {
-                                [1] = "Chance Upgrade",
-                                [2] = {
-                                    [1] = name, -- เช่น "Sung", "Wise"
-                                }
-                            }
-                            ReliableRemote:FireServer(unpack(args))
+						if currentAmount >= cost then
+							local args = {
+								[1] = "Chance Upgrade",
+								[2] = {
+									[1] = name, -- เช่น "Sung", "Wise"
+								}
+							}
+							ReliableRemote:FireServer(unpack(args))
                             
                             -- รอให้เซิร์ฟเวอร์อัปเดตข้อมูลสักครู่ก่อนรอบถัดไป
-                            task.wait(0.5) 
-                        else
+							task.wait(0.5)
+						else
                             -- ถ้าของไม่พอ จะข้ามไปเช็คตัวอื่นที่เปิด Auto ไว้ทันที
-                        end
-                    end
-                end
-            end
-        end
-        
-        task.wait(0.5) -- หน่วงเวลาภาพรวมของ Loop
-    end
+						end
+					end
+				end
+			end
+		end
+		task.wait(0.5) -- หน่วงเวลาภาพรวมของ Loop
+	end
 end)
 
 ----------------------------------------------------------------
@@ -2422,9 +2592,10 @@ Window:OnDestroy(function()
 	State.YenSelectedMastery = false
 	State.YenSelectedCritical = false
 	State.YenSelectedDamage = false
-    State.YenUpgradeState = {}
+	State.YenUpgradeState = {}
+	State.TokenUpgradeState = {}
 	State.GachaState = {}
-    State.TrainerState = {}
+	State.TrainerState = {}
 	State.AutoEquipBest = false
 	_G.ScriptRunning = false
 end)
