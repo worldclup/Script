@@ -20,6 +20,7 @@ local Window = WindUI:CreateWindow({
 	Theme = "Dark", -- Dark, Darker, Light, Aqua, Amethyst, Rose
 	Size = UDim2.fromOffset(800, 400),
 	SizeMin = UDim2.fromOffset(800, 400),
+    NewElements = true,
 	-- Topbar = {
 	-- 	Height = 44,
 	-- 	ButtonsType = "Mac", -- Default or Mac
@@ -1884,19 +1885,19 @@ task.spawn(function()
                         local lv = PlayerData.Attributes.Level or 1
                         local asc = PlayerData.Attributes.Ascension or 0
                         local totalPoints = lv * (1 + asc)
-                        
+
                         local spentPoints = 0
                         for _, amount in pairs(PlayerData.StatPoints) do
                             spentPoints = spentPoints + amount
                         end
-                        
+
                         local pointsAvailable = totalPoints - spentPoints
                     
                         -- 2. ส่งคำสั่งอัปเกรดเมื่อมีแต้มเหลือ
                         if pointsAvailable > 0 then
                             -- ดึงจำนวนที่ต้องการอัปจาก StatPointAmount (ที่เราสแกนเจอว่าเป็น 19)
                             local amountToUpgrade = PlayerData.Attributes.StatPointAmount or 1
-                            
+
                             -- ตรวจสอบไม่ให้อัปเกินแต้มที่มีอยู่จริง
                             local finalAmount = math.min(amountToUpgrade, pointsAvailable)
                         
