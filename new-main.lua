@@ -213,7 +213,8 @@ local function LogicAutoFarm()
 				currentTargetObj = nil;
 			end;
 		end;
-		if not currentTargetObj then
+		if not currentTargetObj and State.SelectedEnemy then
+
 			local targetName = State.SelectedEnemy.Value;
 			if targetName and hrp and GlobalEnemyMap[targetName] then
 				local enemyList = GlobalEnemyMap[targetName] or {};
