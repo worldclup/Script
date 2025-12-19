@@ -18,8 +18,9 @@ local Window = WindUI:CreateWindow({
 	-- Icon = "keyboard",
 	SideBarWidth = 150,
 	Theme = "Dark", -- Dark, Darker, Light, Aqua, Amethyst, Rose
-	Size = UDim2.fromOffset(800, 400),
-	SizeMin = UDim2.fromOffset(800, 400),
+	Size = UDim2.fromOffset(700, 400),
+	MinSize = Vector2.new(700, 400),
+    MaxSize = Vector2.new(700, 400),
     NewElements = true,
 	-- Topbar = {
 	-- 	Height = 44,
@@ -82,16 +83,12 @@ local State = {
 	MasteryBuffApplied = false,
 	AutoRankUp = false,
 	SelectedStat = nil,
-	YenSelectedLuck = false,
-	YenSelectedYen = false,
-	YenSelectedMastery = false,
-	YenSelectedCritical = false,
-	YenSelectedDamage = false,
 	YenUpgradeState = {},
 	TokenUpgradeState = {},
 	GachaState = {},
 	TrainerState = {},
 	AutoEquipBest = false,
+    AutoFuse = false,
 }
 
 local GamemodePriority = {
@@ -696,6 +693,18 @@ local GetTokenCost = TokenModule.GetUpgradeCost
 local GetTokenBuff = TokenModule.GetUpgradeBuff
 -- local FormatNumber = UtilsModule.ToText
 ----------------------------------------------------------------
+-- Get Player Data
+----------------------------------------------------------------
+local function GetPlayerData()
+    if getgenv().PlayerData then return getgenv().PlayerData end
+    for _, v in pairs(getgc(true)) do
+        if type(v) == "table" and rawget(v, "Attributes") and rawget(v, "YenUpgrades") then
+            getgenv().PlayerData = v
+            return v
+        end
+    end
+end
+----------------------------------------------------------------
 -- Get Zone
 ----------------------------------------------------------------
 local function GetZone()
@@ -1079,19 +1088,6 @@ GamemodeTabGroup1:Dropdown({
 		State.Gamemode.Raid = v or {}
 	end
 })
-
--- GamemodeTabGroup1:Slider({
--- 	Title = "Wave",
--- 	Step = 1,
--- 	Value = {
--- 		Min = 0,
--- 		Max = 500,
--- 		Default = 500,
--- 	},
--- 	Callback = function(v)
--- 		State.RaidWave = v
--- 	end
--- })
 GamemodeTabGroup1:Input({
 	Title = "Wave",
 	Value = State.RaidWave,
@@ -1120,19 +1116,6 @@ GamemodeTabGroup2:Dropdown({
 		State.Gamemode.Defense = v or {}
 	end
 })
-
--- GamemodeTabGroup2:Slider({
--- 	Title = "Wave",
--- 	Step = 1,
--- 	Value = {
--- 		Min = 0,
--- 		Max = 200,
--- 		Default = 200,
--- 	},
--- 	Callback = function(v)
--- 		State.DefenseWave = v
--- 	end
--- })
 GamemodeTabGroup2:Input({
 	Title = "Wave",
 	Value = State.DefenseWave,
@@ -1156,19 +1139,6 @@ GamemodeTabGroup3:Dropdown({
 		State.Gamemode.ShadowGate = v or {}
 	end
 })
-
--- GamemodeTabGroup3:Slider({
--- 	Title = "Wave",
--- 	Step = 1,
--- 	Value = {
--- 		Min = 0,
--- 		Max = 500,
--- 		Default = 500,
--- 	},
--- 	Callback = function(v)
--- 		State.ShadowGateWave = v
--- 	end
--- })
 GamemodeTabGroup3:Input({
 	Title = "Wave",
 	Value = State.ShadowGateWave,
@@ -1192,19 +1162,6 @@ GamemodeTabGroup4:Dropdown({
 		State.Gamemode.PirateTower = v or {}
 	end
 })
-
--- GamemodeTabGroup4:Slider({
--- 	Title = "Floor",
--- 	Step = 1,
--- 	Value = {
--- 		Min = 0,
--- 		Max = 100,
--- 		Default = 100,
--- 	},
--- 	Callback = function(v)
--- 		State.PirateTowerFloor = v
--- 	end
--- })
 GamemodeTabGroup4:Input({
 	Title = "Floor",
 	Value = State.PirateTowerFloor,
@@ -1217,7 +1174,7 @@ GamemodeTabGroup4:Input({
 -- Auto Equip Best
 ----------------------------------------------------------------
 local GamemodeTabGroup5 = GamemodeTab:Group({})
-GamemodeTabGroup5:Toggle({
+GamemodeTab:Toggle({
 	Title = "Auto Equip Best",
     -- Desc = "Gamemode (Damage)",
 	Value = false,
@@ -1228,7 +1185,7 @@ GamemodeTabGroup5:Toggle({
 ----------------------------------------------------------------
 -- Auto Join Toggle
 ----------------------------------------------------------------
-GamemodeTabGroup5:Toggle({
+GamemodeTab:Toggle({
 	Title = "Auto Join",
 	Value = false,
 	Callback = function(v)
@@ -1632,18 +1589,12 @@ end
 -- ฟังก์ชันคำนวณราคาตาม Module ที่คุณส่งมา
 ----------------------------------------------------------------
 task.spawn(function()
-	local PlayerData = nil
 	while true do
 		if Window.Destroyed then
 			break
 		end
 		if not Window.Closed then
-			for _, v in pairs(getgc(true)) do
-				if type(v) == "table" and rawget(v, "Attributes") and rawget(v, "YenUpgrades") then
-					PlayerData = v
-					break
-				end
-			end
+			local PlayerData = GetPlayerData()
 			if PlayerData and PlayerData.Attributes then
 				local currentRank = PlayerData.Attributes.Rank or 0
 				local currentMastery = PlayerData.Attributes.Mastery or 0
@@ -1846,7 +1797,6 @@ end
 -- [แยกส่วน] Loop สำหรับระบบ Auto Upgrade (Background Logic)
 ----------------------------------------------------------------
 task.spawn(function()
-    local PlayerData = nil
     while true do
         if Window.Destroyed then break end
         
@@ -1856,12 +1806,7 @@ task.spawn(function()
 
         if isAnyAutoEnabled then
             -- ใช้ PlayerData ที่เราสแกนเจอจาก Loop UI (แชร์ข้อมูลกัน)
-            for _, v in pairs(getgc(true)) do
-				if type(v) == "table" and rawget(v, "Attributes") and rawget(v, "YenUpgrades") then
-					PlayerData = v
-					break
-				end
-			end
+            local PlayerData = GetPlayerData()
             
             if PlayerData and PlayerData.Attributes then
                 -- --- [ 1. Auto Rank Up ] ---
@@ -2092,13 +2037,7 @@ task.spawn(function()
 		if Window.Destroyed then
 			break
 		end
-		local PlayerData = nil
-		for _, v in pairs(getgc(true)) do
-			if type(v) == "table" and rawget(v, "Attributes") and rawget(v, "YenUpgrades") then
-				PlayerData = v
-				break
-			end
-		end
+		local PlayerData = GetPlayerData()
 		if PlayerData then
             -- A. อัปเดตจำนวนไอเท็ม และสถานะการปลดล็อก (Description)
 			if PlayerData.Materials then
@@ -2173,13 +2112,7 @@ task.spawn(function()
 		end
         
         -- ดึงข้อมูล PlayerData ล่าสุดจาก Environment
-		local PlayerData = nil
-		for _, v in pairs(getgc(true)) do
-			if type(v) == "table" and rawget(v, "Attributes") and rawget(v, "YenUpgrades") then
-				PlayerData = v
-				break
-			end
-		end
+		local PlayerData = GetPlayerData()
 		for name, enabled in pairs(State.GachaState) do
 			if enabled then
                 -- 1. ค้นหาชื่อ Token และจำนวนที่มีปัจจุบัน
@@ -2357,13 +2290,7 @@ task.spawn(function()
 			break
 		end
 		if not Window.Closed then
-			local PlayerData = nil
-			for _, v in pairs(getgc(true)) do
-				if type(v) == "table" and rawget(v, "Attributes") and rawget(v, "YenUpgrades") then
-					PlayerData = v
-					break
-				end
-			end
+			local PlayerData = GetPlayerData()
 			if PlayerData then
 				local TrainerLevels = PlayerData.CrateUpgrades or {}
 				local UnlockedData = PlayerData.Unlocked or {}
@@ -2437,13 +2364,7 @@ task.spawn(function()
 		end
         
         -- ดึงข้อมูล PlayerData ล่าสุดจากถังข้อมูลกลาง
-		local PlayerData = nil
-		for _, v in pairs(getgc(true)) do
-			if type(v) == "table" and rawget(v, "Attributes") and rawget(v, "YenUpgrades") then
-				PlayerData = v
-				break
-			end
-		end
+		local PlayerData = GetPlayerData()
 		if PlayerData then
 			for name, enabled in pairs(State.TrainerState) do
 				if enabled then
@@ -2556,6 +2477,30 @@ SettingTab:Button({
 		BoostFps()
 	end
 })
+----------------------------------------------------------------
+-- Auto Fuse Weapons
+----------------------------------------------------------------
+SettingTab:Toggle({
+	Title = "Auto Fuse Weapons",
+	Callback = function(v)
+		State.AutoFuse = v;
+		if v then
+			task.spawn(function()
+				while State.AutoFuse do
+					if Window.Destroyed then
+						break;
+					end;
+					if Reliable then
+						pcall(function()
+							Reliable:FireServer("Weapon Fuse All");
+						end);
+					end;
+					task.wait(5);
+				end;
+			end);
+		end;
+	end
+});
 
 ----------------------------------------------------------------
 -- Window
@@ -2588,15 +2533,13 @@ Window:OnDestroy(function()
 	State.MasteryBuffApplied = false
 	State.AutoRankUp = false
 	State.SelectedStat = nil
-	State.YenSelectedLuck = false
-	State.YenSelectedYen = false
-	State.YenSelectedMastery = false
-	State.YenSelectedCritical = false
-	State.YenSelectedDamage = false
 	State.YenUpgradeState = {}
 	State.TokenUpgradeState = {}
 	State.GachaState = {}
 	State.TrainerState = {}
 	State.AutoEquipBest = false
+    State.AutoFuse = false
 	_G.ScriptRunning = false
 end)
+
+Window:SelectTab(1);
