@@ -685,7 +685,7 @@ local StatsProgressUI = StatsTab:Paragraph({
 	Image = "coins",
 	ImageSize = 32
 })
-StatsTab:Dropdown({
+local StatsDropdownUI = StatsTab:Dropdown({
 	Title = "Auto Upgrade Stats",
 	Values = {
 		"--",
@@ -845,12 +845,15 @@ task.spawn(function()
 				local yenLv = PlayerData.StatPoints.Yen or 1
 
                 -- 3. เตรียมข้อความสรุป (ใช้สูตร Buff Lv * 5 ตามสคริปต์เกม)
-				local descText = string.format("✨ Points Available: %d\n🔮 Mastery Lv.%d | Buff: +%d%%\n⚔️ Damage Lv.%d | Buff: +%d%%\n🍀 Luck Lv.%d | Buff: +%d%%\n💰 Yen Lv.%d | Buff: +%d%%", pointsAvailable, masteryLv, masteryLv * 5, damageLv, damageLv * 5, luckLv, luckLv * 5, yenLv, yenLv * 5)
+				-- local descText = string.format("✨ Points Available: %d\n🔮 Mastery Lv.%d | Buff: +%d%%\n⚔️ Damage Lv.%d | Buff: +%d%%\n🍀 Luck Lv.%d | Buff: +%d%%\n💰 Yen Lv.%d | Buff: +%d%%", pointsAvailable, masteryLv, masteryLv * 5, damageLv, damageLv * 5, luckLv, luckLv * 5, yenLv, yenLv * 5)
+				local descText = string.format("🔮 Mastery Lv.%d | Buff: +%d%%\n⚔️ Damage Lv.%d | Buff: +%d%%\n🍀 Luck Lv.%d | Buff: +%d%%\n💰 Yen Lv.%d | Buff: +%d%%", masteryLv, masteryLv * 5, damageLv, damageLv * 5, luckLv, luckLv * 5, yenLv, yenLv * 5)
+                local descToggleText = string.format("✨ Points Available: %d", pointsAvailable)
 
                 -- 4. อัปเดตลงใน UI
 				pcall(function()
 					StatsProgressUI:SetTitle("📊 Character Stats Overview")
 					StatsProgressUI:SetDesc(descText)
+                    StatsDropdownUI:SetDesc(descToggleText)
 				end)
 			end
 			if PlayerData.YenUpgrades then
@@ -929,7 +932,119 @@ task.spawn(function()
 		task.wait(2)
 	end
 end)
+----------------------------------------------------------------
+-- Fire Yen Upgrade
+----------------------------------------------------------------
+local function FireYenUpgrade(stat)
+	Reliable:FireServer("Yen Upgrade", {
+		stat
+	})
+end
+----------------------------------------------------------------
+-- Fire Token Upgrade
+----------------------------------------------------------------
+local function FireTokenUpgrade(stat)
+	Reliable:FireServer("Token Upgrade", {
+		stat
+	})
+end
+------------------------------------------------------------------------------------
+---
+------------------------------------------------------------------------------------
+task.spawn(function()
+    while true do
+        if Window.Destroyed then break end
+        
+        -- ทำงานเฉพาะเมื่อเปิดใช้งาน Auto ใดๆ อยู่ (ลดการทำงาน CPU)
+        local isAnyAutoEnabled = State.AutoRankUp or State.SelectedStat 
+            or next(State.YenUpgradeState) or next(State.TokenUpgradeState)
 
+        if isAnyAutoEnabled then
+            -- ใช้ PlayerData ที่เราสแกนเจอจาก Loop UI (แชร์ข้อมูลกัน)
+            local PlayerData = GetPlayerData()
+            
+            if PlayerData and PlayerData.Attributes then
+                -- --- [ 1. Auto Rank Up ] ---
+                if State.AutoRankUp then
+                    local currentRank = PlayerData.Attributes.Rank or 0
+                    local currentMastery = PlayerData.Attributes.Mastery or 0
+                    local req = GetRankRequirement(currentRank)
+                    
+                    -- เช็คว่า Rank ไม่ตัน และ Mastery ถึงเกณฑ์
+                    if currentRank < MaxRankCap and currentMastery >= (req or 0) then
+                        Reliable:FireServer("RankUp", {})
+                        task.wait(0.3) -- รอเล็กน้อยหลังอัปเกรด
+                    end
+                end
+
+                -- --- [ 2. Auto Stats (Points) ] ---
+                -- ส่วนของ Auto Stats ในลูป Auto Upgrade
+                if State.SelectedStat and State.SelectedStat ~= "--" then
+                    pcall(function()
+                        -- 1. คำนวณหาแต้มคงเหลือจริง (Points Available)
+                        local lv = PlayerData.Attributes.Level or 1
+                        local asc = PlayerData.Attributes.Ascension or 0
+                        local totalPoints = lv * (1 + asc)
+
+                        local spentPoints = 0
+                        for _, amount in pairs(PlayerData.StatPoints) do
+                            spentPoints = spentPoints + amount
+                        end
+
+                        local pointsAvailable = totalPoints - spentPoints
+                    
+                        -- 2. ส่งคำสั่งอัปเกรดเมื่อมีแต้มเหลือ
+                        if pointsAvailable > 0 then
+                            -- ดึงจำนวนที่ต้องการอัปจาก StatPointAmount (ที่เราสแกนเจอว่าเป็น 19)
+                            local amountToUpgrade = PlayerData.Attributes.StatPointAmount or 1
+
+                            -- ตรวจสอบไม่ให้อัปเกินแต้มที่มีอยู่จริง
+                            local finalAmount = math.min(amountToUpgrade, pointsAvailable)
+                        
+                            Reliable:FireServer("Distribute Stat Point", {
+                                State.SelectedStat,
+                                finalAmount -- อัปตามจำนวนที่กำหนด หรือเท่าที่แต้มเหลือ
+                            })
+                            task.wait(0.2) -- หน่วงเวลาเล็กน้อยเพื่อป้องกันการส่งซ้ำซ้อน
+                        end
+                    end)
+                end
+
+                -- --- [ 3. Auto Yen Upgrades ] ---
+                local currentYen = PlayerData.Attributes.Yen or 0
+                for name, isEnabled in pairs(State.YenUpgradeState) do
+                    if isEnabled then
+                        local currentLevel = PlayerData.YenUpgrades and PlayerData.YenUpgrades[name] or 0
+                        local maxLevel = YenUpgradeConfig[name] and YenUpgradeConfig[name].MaxLevel or 0
+                        local cost = GetYenCost(currentLevel)
+
+                        -- เช็คว่าไม่ตันและเงินพอ
+                        if currentLevel < maxLevel and currentYen >= (cost or 0) then
+                            FireYenUpgrade(name)
+                        end
+                    end
+                end
+
+                -- --- [ 4. Auto Token Upgrades ] ---
+                local currentToken = PlayerData.Materials and PlayerData.Materials.UpgradeToken or 0
+                for name, isEnabled in pairs(State.TokenUpgradeState) do
+                    if isEnabled then
+                        local currentLevel = PlayerData.TokenUpgrades and PlayerData.TokenUpgrades[name] or 0
+                        local maxLevel = TokenUpgradeConfig[name] and TokenUpgradeConfig[name].MaxLevel or 0
+                        local cost = GetTokenCost(currentLevel, name)
+
+                        -- เช็คว่าไม่ตันและ Token พอ
+                        if currentLevel < maxLevel and currentToken >= (cost or 0) then
+                            FireTokenUpgrade(name)
+                        end
+                    end
+                end
+            end
+        end
+
+        task.wait(0.5) -- ปรับความเร็วลูปให้พอดี (2 ครั้งต่อวินาที) ไม่กินสเปคเครื่อง
+    end
+end)
 
 
 Window:SelectTab(1);
