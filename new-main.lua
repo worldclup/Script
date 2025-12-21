@@ -96,7 +96,12 @@ local State = {
 	ZoneConfigurations = {},
 	TargetDungeon = {},
 	TargetRaid = {},
-	TargetDefense = {} 
+	TargetDefense = {},
+    GamemodeSession = {
+        Active = false,
+        Mode = nil,
+        StartTime = 0,
+    },
 };
 
 LocalPlayer.CharacterAdded:Connect(function(char)
@@ -151,6 +156,9 @@ Window:OnDestroy(function()
 	State.AutoYen_Yen = false;
 	State.AutoYen_Mastery = false;
 	State.AutoYen_Critical = false;
+    State.GamemodeSession.Active = false
+    State.GamemodeSession.Mode = nil
+    State.GamemodeSession.StartTime = 0
 	if CurrentZoneName ~= "" and State.SelectedEnemy then
 		-- SaveZoneConfig(CurrentZoneName, State.SelectedEnemy);
 	end;
@@ -273,7 +281,8 @@ local function GetAllGamemodesUnified()
         ["Medium"] = 2,
         ["Bleach"] = 2,  -- สำหรับ Raid
         ["Hard"] = 3,
-        ["Default"] = 4
+        ["Default"] = 4,
+        ["Insane"] = 4,
     }
 
     local GamemodeMap = {
@@ -281,6 +290,7 @@ local function GetAllGamemodesUnified()
         ["Dungeon: Easy"] = "Dungeon:1",
     	["Dungeon: Medium"] = "Dungeon:2",
     	["Dungeon: Hard"] = "Dungeon:3",
+        ["Dungeon: Insane"] = "Dungeon:4",
         ["Raid: Shinobi"] = "Raid:1",
     	["Raid: Bleach"] = "Raid:2",
         ["Shadow Gate"] = "ShadowGate",
@@ -294,7 +304,7 @@ local function GetAllGamemodesUnified()
             for _, phase in ipairs(modeData.PHASES) do
                 table.insert(unifiedList, {
                     Mode = modeName,
-                    -- Difficulty = phase.Name or "Easy",
+                    Difficulty = phase.Name or "Easy",
                     -- Health = phase.HealthBase or 0,
                     -- Rewards = phase.ChanceReward or {}
                     Title = modeName .. ": " .. (phase.Name or "Easy"),
@@ -332,6 +342,19 @@ end
 ------------------------------------------------------------------------------------
 --- 
 ------------------------------------------------------------------------------------
+local function GetZone()
+	local zonesFolder = Workspace:FindFirstChild("Zones")
+	if not zonesFolder then
+		return nil
+	end
+	for _, z in ipairs(zonesFolder:GetChildren()) do
+		if z:IsA("Folder") and # z:GetChildren() > 0 then
+			return z.Name
+			-- break
+		end
+	end
+	return nil
+end
 local function isPlayerInZone(zone)
 	local chars = zone:FindFirstChild("Characters");
 	if chars and chars:FindFirstChild(LocalPlayer.Name) then
@@ -371,130 +394,142 @@ end;
 ------------------------------------------------------------------------------------
 --- 
 ------------------------------------------------------------------------------------
+local function JoinGamemode(targetValue)
+    if State.GamemodeSession.Active then return end
+
+    print("[JOIN]", targetValue)
+
+    local currentMap = GetCurrentMapStatus()
+    if currentMap ~= "Unknown" then
+        LastZone = currentMap
+    end
+    
+    print("LastZone: ",LastZone)
+    pcall(function()
+        Reliable:FireServer("Join Gamemode", { targetValue })
+    end)
+
+    task.wait(5) -- รอโหลดแมพ
+end
+------------------------------------------------------------------------------------
+--- 
+------------------------------------------------------------------------------------
+local function IsInGamemodeZone()
+    local zone = GetZone()
+    if not zone then return false end
+
+    return zone:match("^Dungeon:%d+")
+        or zone:match("^Raid:%d+")
+        or zone:match("^Defense:%d+")
+        or zone:match("ShadowGate")
+        or zone:match("PirateTower")
+end
+------------------------------------------------------------------------------------
+--- 
+------------------------------------------------------------------------------------
 local function LogicGamemodes()
-	local wasInGamemode = false;
-	local currentTargetObj = nil;
-	local refreshTimer = 0;
-	while State.AutoDungeon do
-		if Window.Destroyed then
-			break;
-		end;
-		local currentMap = GetCurrentMapStatus();
-		local inLobbyZone = false;
-        -- เช็คว่าอยู่ในแมพต่อสู้หรือไม่
-        local isFightingZone = (currentMap ~= "Unknown" and currentMap ~= "Dungeon" and not Workspace:FindFirstChild("Zones")) 
-            or string.find(currentMap, ":Active") 
-            or currentMap:match("^Dungeon:%d+") or currentMap == "Raid" or currentMap == "Defense" or currentMap == "ShadowGate" or currentMap == "PirateTower";
+    local refreshTimer = 0
 
-            
-        if currentMap ~= "Unknown" then
-            if isFightingZone then
-                wasInGamemode = true;
-                if os.time() - refreshTimer > 1 then
-                    RefreshEnemyData();
-                    refreshTimer = os.time();
-                end;
+    while State.AutoDungeon do
+        if Window.Destroyed then break end
+        local inGamemodeZone = IsInGamemodeZone()
+        
+        print("==================================================================")
+        print("inGamemodeZone: ",inGamemodeZone)
+        print("State.GamemodeSession.Active: ",State.GamemodeSession.Active)
+        print("==================================================================")
+        
+        if State.TargetDungeon and # State.TargetDungeon > 0 and not State.GamemodeSession.Active and not inGamemodeZone then
+            local joinTarget = nil
+            local t = os.date("*t")
+            local currentMinute = t.min
+    
+            for _, targetValue in ipairs(State.TargetDungeon) do
+                local split = string.split(targetValue, ":")
+                local mName = split[1]
+                local mIndex = tonumber(split[2])
 
-                -- วนลูปตีมอนสเตอร์ทุกตัวที่เจอใน Map
-                local foundEnemy = false
-                for _, enemyList in pairs(GlobalEnemyMap) do
-                    for _, enemyObj in ipairs(enemyList) do
-                        if enemyObj.Alive == true and enemyObj.Data and enemyObj.Data.CFrame then
-                            foundEnemy = true
-                            
-                            -- 1. วาร์ปไปหา (เลือกตัวใดตัวหนึ่งใน Loop มาเป็นตำแหน่งหลัก)
-                            if hrp then
-                                hrp.CFrame = enemyObj.Data.CFrame * CFrame.new(0, 0, -5)
-                            end
-
-                            -- 2. ส่ง Remote ตี (ยิงรัวทุกตัวที่ยังมีชีวิต)
-                            if enemyObj.Uid and Unreliable then
-                                pcall(function()
-                                    Unreliable:FireServer("Hit", {
-                                        enemyObj.Uid
-                                    });
-                                end);
+                inGamemodeZone = IsInGamemodeZone()
+    
+                local mData = GamemodeModule:Get(mName)
+                if not mData then return nil end
+    
+                -- กรณีมี PHASE + เวลา
+                if mData.PHASES and mIndex then
+                    local phase = mData.PHASES[mIndex]
+                    if phase and phase.START_TIMES then
+                        for _, startTime in ipairs(phase.START_TIMES) do
+                            if currentMinute == startTime then
+                                joinTarget = targetValue
                             end
                         end
                     end
+    
+                -- กรณีโหมดใช้ Key (เข้าได้ตลอด)
+                elseif mData.TYPE and table.find(mData.TYPE, "KEY") then
+                    joinTarget = targetValue
                 end
 
-                if not foundEnemy then
-                    RefreshEnemyData()
+                if joinTarget and not State.GamemodeSession.Active and not inGamemodeZone then
+                    JoinGamemode(joinTarget)
                 end
+            end
+        end
 
-                task.wait(0.1);
-			elseif inLobbyZone or wasInGamemode and (not isFightingZone) then
-                -- print("warp farm")
-                currentTargetObj = nil;
-                GlobalEnemyMap = {};
-                if LastZone and LastZone ~= "" and LastZone ~= "Unknown" then
-                    task.wait(10);
-                    -- Window:Notify({Title = "Finished", Content = "Returning to " .. LastZone, Duration = 3});
-                    wasInGamemode = false;
-                    if Reliable then pcall(function() Reliable:FireServer("Zone Teleport", {LastZone}) end) end;
-                    task.wait(5);
-                    EnemyDropdown:Refresh(RefreshEnemyData());
+        --------------------------------------------------
+        -- FIGHT (อยู่ในดันจริง)
+        --------------------------------------------------
+        if inGamemodeZone then
+            State.GamemodeSession.Active = true
+            -- State.GamemodeSession.Mode = targetValue
+            -- State.GamemodeSession.StartTime = os.clock()
 
-                else
-                    wasInGamemode = false;
-                end;
-			else
-                -- [Logic การ Join แบบใหม่]
-                local t = os.date("*t");
-                local currentMinute = t.min;
-                local joinTarget = nil;
+            if os.time() - refreshTimer > 1 then
+                RefreshEnemyData()
+                refreshTimer = os.time()
+            end
 
-                -- วนลูปเช็คด่านที่เราเลือกไว้ใน State.TargetDungeon
-                for _, targetValue in pairs(State.TargetDungeon) do
-
-                    -- targetValue จะเป็นค่าเช่น "Dungeon:1" หรือ "ShadowGate"
-                    local split = string.split(targetValue, ":")
-                    local mName = split[1]
-                    local mIndex = tonumber(split[2])
-
-                    local mData = GamemodeModule:Get(mName)
-                    if mData then
-                        if mData.PHASES and mData.PHASES[1] and mIndex then
-                            local phase = mData.PHASES[mIndex]
-                            if phase and phase.START_TIMES then
-                                for _, startTime in ipairs(phase.START_TIMES) do
-                                    if currentMinute == startTime then
-                                        joinTarget = targetValue
-                                        break
-                                    end
-                                end
-                            end
-                        elseif mData.TYPE and table.find(mData.TYPE, "KEY") then
-                            -- ถ้าเป็นโหมดใช้กุญแจ (ไม่ต้องรอเวลา) ให้เข้าได้เลย
-                            joinTarget = targetValue
+            for _, enemyList in pairs(GlobalEnemyMap) do
+                for _, enemyObj in ipairs(enemyList) do
+                    if enemyObj.Alive and enemyObj.Data and enemyObj.Data.CFrame then
+                        if hrp then
+                            hrp.CFrame = enemyObj.Data.CFrame * CFrame.new(0, 0, -5)
+                        end
+                        if enemyObj.Uid then
+                            pcall(function()
+                                Unreliable:FireServer("Hit", { enemyObj.Uid })
+                            end)
                         end
                     end
-                    if joinTarget then break end
                 end
-                
-                print("===========================================")
-                print("joinTarget: ",joinTarget)
-                print("isFightingZone: ",isFightingZone)
-                print("wasInGamemode: ",wasInGamemode)
-                print("===========================================")
+            end
 
-                if joinTarget and not isFightingZone then
+        --------------------------------------------------
+        -- FINISH (ออกจาก GamemodeZone แล้ว)
+        --------------------------------------------------
+        elseif State.GamemodeSession.Active and not inGamemodeZone then
+            print("[FINISH]: ", State.GamemodeSession.Mode)
+            print("LastZone: ", LastZone)
 
-                    print("Warp")
+            State.GamemodeSession.Active = false
+            State.GamemodeSession.Mode = nil
 
-                    if currentMap ~= "Unknown" then LastZone = currentMap end;
-                    -- Window:Notify({Title = "Auto Mode", Content = "Joining " .. joinTarget, Duration = 3});
-                    if Reliable then 
-                        pcall(function() Reliable:FireServer("Join Gamemode", {joinTarget}) end) 
-                    end;
-                    task.wait(5); -- รอโหลดแมพ
-                end
-                task.wait(1);
-			end;
-		end;
-	end;
-end;
+            GlobalEnemyMap = {}
+            CurrentZoneEnemiesCache = {}
+
+            if LastZone then
+                task.wait(3)
+                pcall(function()
+                    Reliable:FireServer("Zone Teleport", { LastZone })
+                end)
+                task.wait(5)
+                EnemyDropdown:Refresh(RefreshEnemyData())
+            end
+        end
+
+        task.wait(0.2)
+    end
+end
 ------------------------------------------------------------------------------------
 --- MainSection
 ------------------------------------------------------------------------------------
