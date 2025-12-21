@@ -1,12 +1,32 @@
 ------------------------------------------------------------------------------------
 --- Color
 ------------------------------------------------------------------------------------
-local Purple = Color3.fromHex("#7775F2")
-local Yellow = Color3.fromHex("#ECA201")
-local Green = Color3.fromHex("#10C550")
-local Grey = Color3.fromHex("#83889E")
-local Blue = Color3.fromHex("#257AF7")
-local Red = Color3.fromHex("#EF4F1D")
+local Purple    = Color3.fromHex("#7775F2")
+local Yellow    = Color3.fromHex("#ECA201")
+local Green     = Color3.fromHex("#10C550")
+local Grey      = Color3.fromHex("#83889E")
+local Blue      = Color3.fromHex("#257AF7")
+local Red       = Color3.fromHex("#EF4F1D")
+
+local Common    = Color3.fromHex("#BCC1C5") -- เทาอ่อน (ทั่วไป)
+local Rare      = Color3.fromHex("#3692FF") -- ฟ้าสดใส (หายาก)
+local Epic      = Color3.fromHex("#9D5CFF") -- ม่วงเข้ม (เอปิก)
+local Legendary = Color3.fromHex("#FFAC38") -- ส้มทอง (ตำนาน)
+local Mythic    = Color3.fromHex("#FF3B3B") -- แดงเพลิง (มายา)
+local Divine    = Color3.fromHex("#FFD700") -- ทองสว่าง (เทพเจ้า)
+local Special   = Color3.fromHex("#00FFC3") -- เขียวมิ้นท์สว่าง (พิเศษ)
+
+local Success = Color3.fromHex("#27E181") -- เขียวสว่าง (สำเร็จ)
+local Warning = Color3.fromHex("#F7D547") -- เหลืองอำพัน (เตือน)
+local Error   = Color3.fromHex("#FF4D4D") -- แดงสว่าง (ผิดพลาด)
+local Info    = Color3.fromHex("#00D1FF") -- ฟ้าอ่อน (ข้อมูล)
+local Neutral = Color3.fromHex("#E0E0E0") -- ขาวนวล (ปกติ)
+
+local NeonPink   = Color3.fromHex("#FF00D4")
+local NeonBlue   = Color3.fromHex("#00F0FF")
+local NeonGreen  = Color3.fromHex("#ADFF2F")
+local SoftPurple = Color3.fromHex("#C3B1E1")
+local DeepSea    = Color3.fromHex("#124076")
 ------------------------------------------------------------------------------------
 --- Game
 ------------------------------------------------------------------------------------
@@ -31,6 +51,16 @@ local GamemodeModule = require(ConfigsPath.Gamemodes);
 
 local ChanceModules = {};
 local ChancePath = ReplicatedStorage.Scripts.Configs:FindFirstChild("ChanceUpgrades");
+
+local function GetPlayerData()
+    if getgenv().PlayerData then return getgenv().PlayerData end
+    for _, v in pairs(getgc(true)) do
+        if type(v) == "table" and rawget(v, "Attributes") and rawget(v, "YenUpgrades") then
+            getgenv().PlayerData = v
+            return v
+        end
+    end
+end
 ------------------------------------------------------------------------------------
 --- Game Script
 ------------------------------------------------------------------------------------
@@ -43,12 +73,14 @@ end;
 local function GetYenBuff(name, lvl)
 	return YenModule.GetUpgradeBuff(name, lvl);
 end;
-local function GetTokenCost(lvl)
-	return TokenModule.GetUpgradeCost(lvl);
-end;
-local function GetTokenBuff(name, lvl)
-	return TokenModule.GetUpgradeBuff(name, lvl);
-end;
+-- local function GetTokenCost(lvl)
+-- 	return TokenModule.GetUpgradeCost(lvl);
+-- end;
+-- local function GetTokenBuff(name, lvl)
+-- 	return TokenModule.GetUpgradeBuff(name, lvl);
+-- end;
+local GetTokenCost = TokenModule.GetUpgradeCost
+local GetTokenBuff = TokenModule.GetUpgradeBuff
 local function GetRankRequirement(rank)
 	return RankModule.GetRequirement(rank);
 end;
@@ -72,6 +104,9 @@ local State = {
 	AutoDungeon = false,
 	AutoFuse = false,
 	AutoRankUp = false,
+    SelectedStat = nil,
+    YenUpgradeState = {},
+    TokenUpgradeState = {},
 	AutoYen_Luck = false,
 	AutoYen_Damage = false,
 	AutoYen_Yen = false,
@@ -122,12 +157,12 @@ local Window = UI:CreateWindow({
     -- Title = "🅳🅴🅺 🅳🅴🆅 🅷🆄🅱",
     Title = "DEK DEV HUB", -- "🅳🅴🅺 🅳🅴🆅 🅷🆄🅱",
 	-- Icon = "keyboard",
-	SideBarWidth = 150,
+	SideBarWidth = 200,
 	Theme = "Dark", -- Dark, Darker, Light, Aqua, Amethyst, Rose
-	Size = UDim2.fromOffset(700, 400),
-	MinSize = Vector2.new(700, 400),
-    MaxSize = Vector2.new(700, 400),
-    NewElements = true,
+	Size = UDim2.fromOffset(800, 400),
+	MinSize = Vector2.new(800, 400),
+    MaxSize = Vector2.new(800, 400),
+    -- NewElements = true,
 	-- Topbar = {
 	-- 	Height = 44,
 	-- 	ButtonsType = "Mac", -- Default or Mac
@@ -148,6 +183,9 @@ Window:OnDestroy(function()
 	State.AutoDungeon = false;
 	State.AutoFuse = false;
 	State.AutoRankUp = false;
+    State.SelectedStat = nil;
+    State.YenUpgradeState = {};
+    State.TokenUpgradeState = {};
 	State.AutoRollBiju = false;
 	State.AutoRollRace = false;
 	State.AutoRollSayajin = false;
@@ -168,9 +206,9 @@ end);
 ------------------------------------------------------------------------------------
 local function RefreshEnemyData()
     local uiList = {};
-    local seenForUI = {}; 
+    local seenForUI = {};
     GlobalEnemyMap = {}; -- ล้างค่าใหม่ทุกครั้งที่ Refresh
-    
+
     local EnemiesFolder = Workspace:FindFirstChild("Enemies");
     if not EnemiesFolder then return uiList; end;
 
@@ -185,8 +223,8 @@ local function RefreshEnemyData()
                 local display = config.Display or "Unknown";
                 local difficulty = config.Difficult or "Normal";
                 -- local realName = rawget(v, "Character") and v.Character.Name or display;
-                
-                local groupName = display 
+
+                local groupName = display;
 
                 if not GlobalEnemyMap[display] then
                     GlobalEnemyMap[display] = {};
@@ -258,12 +296,12 @@ local function LogicAutoFarm()
 	end;
 end;
 ------------------------------------------------------------------------------------
---- 
+---
 ------------------------------------------------------------------------------------
 local function GetAllGamemodesUnified()
     -- ใส่ GamemodeModule เข้าไปใน GetList เพราะมันคือ p5 (ตามโครงสร้าง module ของเกมคุณ)
-    local allModes = GamemodeModule:GetList(GamemodeModule)
-    local unifiedList = {}
+    local allModes = GamemodeModule:GetList(GamemodeModule);
+    local unifiedList = {};
 
     -- 1. กำหนดลำดับของกลุ่มโหมด (ยิ่งน้อยยิ่งขึ้นก่อน)
     local modeOrder = {
@@ -340,7 +378,7 @@ local function GetAllGamemodesUnified()
     return unifiedList
 end
 ------------------------------------------------------------------------------------
---- 
+---
 ------------------------------------------------------------------------------------
 local function GetZone()
 	local zonesFolder = Workspace:FindFirstChild("Zones")
@@ -392,19 +430,15 @@ local function GetCurrentMapStatus()
 	return "Unknown";
 end;
 ------------------------------------------------------------------------------------
---- 
+---
 ------------------------------------------------------------------------------------
 local function JoinGamemode(targetValue)
     if State.GamemodeSession.Active then return end
-
-    print("[JOIN]", targetValue)
 
     local currentMap = GetCurrentMapStatus()
     if currentMap ~= "Unknown" then
         LastZone = currentMap
     end
-    
-    print("LastZone: ",LastZone)
     pcall(function()
         Reliable:FireServer("Join Gamemode", { targetValue })
     end)
@@ -412,7 +446,7 @@ local function JoinGamemode(targetValue)
     task.wait(5) -- รอโหลดแมพ
 end
 ------------------------------------------------------------------------------------
---- 
+---
 ------------------------------------------------------------------------------------
 local function IsInGamemodeZone()
     local zone = GetZone()
@@ -425,7 +459,7 @@ local function IsInGamemodeZone()
         or zone:match("PirateTower")
 end
 ------------------------------------------------------------------------------------
---- 
+---
 ------------------------------------------------------------------------------------
 local function LogicGamemodes()
     local refreshTimer = 0
@@ -433,27 +467,22 @@ local function LogicGamemodes()
     while State.AutoDungeon do
         if Window.Destroyed then break end
         local inGamemodeZone = IsInGamemodeZone()
-        
-        print("==================================================================")
-        print("inGamemodeZone: ",inGamemodeZone)
-        print("State.GamemodeSession.Active: ",State.GamemodeSession.Active)
-        print("==================================================================")
-        
+
         if State.TargetDungeon and # State.TargetDungeon > 0 and not State.GamemodeSession.Active and not inGamemodeZone then
             local joinTarget = nil
             local t = os.date("*t")
             local currentMinute = t.min
-    
+
             for _, targetValue in ipairs(State.TargetDungeon) do
                 local split = string.split(targetValue, ":")
                 local mName = split[1]
                 local mIndex = tonumber(split[2])
 
                 inGamemodeZone = IsInGamemodeZone()
-    
+
                 local mData = GamemodeModule:Get(mName)
                 if not mData then return nil end
-    
+
                 -- กรณีมี PHASE + เวลา
                 if mData.PHASES and mIndex then
                     local phase = mData.PHASES[mIndex]
@@ -464,7 +493,7 @@ local function LogicGamemodes()
                             end
                         end
                     end
-    
+
                 -- กรณีโหมดใช้ Key (เข้าได้ตลอด)
                 elseif mData.TYPE and table.find(mData.TYPE, "KEY") then
                     joinTarget = targetValue
@@ -508,9 +537,6 @@ local function LogicGamemodes()
         -- FINISH (ออกจาก GamemodeZone แล้ว)
         --------------------------------------------------
         elseif State.GamemodeSession.Active and not inGamemodeZone then
-            print("[FINISH]: ", State.GamemodeSession.Mode)
-            print("LastZone: ", LastZone)
-
             State.GamemodeSession.Active = false
             State.GamemodeSession.Mode = nil
 
@@ -601,7 +627,7 @@ GamemodeTap:Dropdown({
 	end
 })
 
- GamemodeTap:Toggle({
+GamemodeTap:Toggle({
 	Title = "Auto Join & Kill",
 	Flag = "AutoDungeon_Cfg",
 	Callback = function(val)
@@ -611,5 +637,299 @@ GamemodeTap:Dropdown({
 		end;
 	end
 });
+------------------------------------------------------------------------------------
+--- CharacterSection
+------------------------------------------------------------------------------------
+local CharacterSection = Window:Section({
+	Title = "Character",
+	Icon = "user",
+	Opened = true,
+});
+------------------------------------------------------------------------------------
+--- CharacterSection Tab 1
+------------------------------------------------------------------------------------
+local RankUpTab = CharacterSection:Tab({
+	Title = "Rank Up",
+	Icon = "arrow-up-1-0",
+    IconColor = Divine,
+	IconShape = "Square",
+});
+
+local RankProgressUI = RankUpTab:Paragraph({
+	Title = "Rank Progress",
+	Desc = "Loading data...",
+	Image = "arrow-up-1-0",
+	ImageSize = 32
+})
+
+RankUpTab:Toggle({
+	Title = "Auto Rank Up",
+	Value = false,
+	Callback = function(v)
+		State.AutoRankUp = v
+	end
+})
+------------------------------------------------------------------------------------
+--- CharacterSection Tab 2
+------------------------------------------------------------------------------------
+local StatsTab = CharacterSection:Tab({
+	Title = "Stats",
+	Icon = "coins",
+    IconColor = Blue,
+	IconShape = "Square",
+});
+
+local StatsProgressUI = StatsTab:Paragraph({
+	Title = "Stats Progress",
+	Desc = "Loading data...",
+	Image = "coins",
+	ImageSize = 32
+})
+StatsTab:Dropdown({
+	Title = "Auto Upgrade Stats",
+	Values = {
+		"--",
+		"Mastery",
+		"Damage",
+		"Luck",
+		"Yen"
+	},
+	Multi = false,
+	Callback = function(v)
+		if v == "--" then
+			State.SelectedStat = nil
+		else
+			State.SelectedStat = v
+		end
+	end
+})
+------------------------------------------------------------------------------------
+--- CharacterSection Tab 3
+------------------------------------------------------------------------------------
+local YenUpgradeTab = CharacterSection:Tab({
+	Title = "Yen Upgrades",
+	Icon = "badge-japanese-yen",
+    IconColor = Yellow,
+	IconShape = "Square",
+});
+local YenToggleUI = {}
+local YenUpgradeNames = {
+	"Luck",
+	"Yen",
+	"Mastery",
+	"Critical",
+	"Damage"
+}
+local YenCurrentGroup = nil
+local YenProgressUI = YenUpgradeTab:Paragraph({
+	Title = "Yen Progress",
+	Desc = "Loading data...",
+	Image = "badge-japanese-yen",
+	ImageSize = 32
+})
+for i, name in ipairs(YenUpgradeNames) do
+	if i % 2 == 1 then
+		YenCurrentGroup = YenUpgradeTab:Group({})
+	end
+	State.YenUpgradeState[name] = false
+	YenToggleUI[name] = YenCurrentGroup:Toggle({
+		Title = name,
+		Value = false,
+		Callback = function(v)
+			State.YenUpgradeState[name] = v
+		end
+	})
+end
+----------------------------------------------------------------
+--- CharacterSection Tab 4
+----------------------------------------------------------------
+local TokenUpgradeTab = CharacterSection:Tab({
+	Title = "Token Upgrades",
+	Icon = "geist:chevron-double-up",
+    IconColor = Mythic,
+	IconShape = "Square",
+});
+local TokenToggleUI = {}
+local TokenUpgradeNames = {
+	"Run Speed",
+	"Luck",
+	"Yen",
+	"Mastery",
+	"Drop",
+	"Critical",
+	"Damage"
+}
+local TokenCurrentGroup = nil
+
+local TokenProgressUI = TokenUpgradeTab:Paragraph({
+	Title = "Yen Progress",
+	Desc = "Loading data...",
+	Image = "geist:chevron-double-up",
+	ImageSize = 32
+})
+
+for i, name in ipairs(TokenUpgradeNames) do
+	if i % 2 == 1 then
+		TokenCurrentGroup = TokenUpgradeTab:Group({})
+	end
+	State.TokenUpgradeState[name] = false
+	TokenToggleUI[name] = TokenCurrentGroup:Toggle({
+		Title = name,
+		Value = false,
+		Callback = function(v)
+			State.TokenUpgradeState[name] = v
+		end
+	})
+end
+------------------------------------------------------------------------------------
+---
+------------------------------------------------------------------------------------
+task.spawn(function()
+	while true do
+		if Window.Destroyed then
+			break
+		end
+		if not Window.Closed then
+			local PlayerData = GetPlayerData()
+			if PlayerData and PlayerData.Attributes then
+				local currentRank = PlayerData.Attributes.Rank or 0
+				local currentMastery = PlayerData.Attributes.Mastery or 0
+
+                -- ดึงค่าจาก Module ที่ส่งมา
+				local req = GetRankRequirement(currentRank) or 1
+				local currentBuff = GetRankBuff(currentRank) or 0
+				local nextBuff = GetRankBuff(currentRank + 1) or 0
+				pcall(function()
+                    -- คำนวณเปอร์เซ็นต์ (Mastery / Requirement)
+					local percent = math.clamp(currentMastery / req, 0, 1)
+					local barText = string.rep("█", math.floor(percent * 10)) .. string.rep("▒", 10 - math.floor(percent * 10))
+
+                    -- จัดการข้อความ Buff (Mastery ของเกมนี้ Buff เพิ่มขึ้นแบบ 2^(n-1))
+					local buffText = ""
+					if currentRank >= MaxRankCap then
+						buffText = string.format("Buff: %s%% (MAX)", FormatNumber(currentBuff))
+					else
+						buffText = string.format("Buff: %s%% ➔ %s%%", FormatNumber(currentBuff), FormatNumber(nextBuff))
+					end
+
+                    -- อัปเดต UI ให้สวยเหมือน anui
+					RankProgressUI:SetTitle(string.format("Rank %d", currentRank))
+					RankProgressUI:SetDesc(string.format("%s\n[%s] %d%%\n%s / %s", buffText, barText, math.floor(percent * 100), FormatNumber(currentMastery), FormatNumber(req)))
+				end)
+
+                -- -- ระบบ Auto Rank Up
+                -- if State.AutoRankUp and currentMastery >= req then
+                --     -- ตรวจสอบว่า Rank ยังไม่เต็ม
+                --     if currentRank < MaxRankCap then
+                --         Reliable:FireServer("Rank Up") -- ส่ง Remote ไปอัปเกรด
+                --         task.wait(0.5)
+                --     end
+                -- end
+			end
+			-- ภายใน Loop task.spawn หลักที่เช็ค PlayerData
+			if PlayerData and PlayerData.Attributes and PlayerData.StatPoints then
+                -- 1. คำนวณแต้มคงเหลือ (Points Available) ตามสูตรของเกม
+				local lv = PlayerData.Attributes.Level or 1
+				local asc = PlayerData.Attributes.Ascension or 0
+				local totalPoints = lv * (1 + asc)
+				local spentPoints = 0
+				for _, amount in pairs(PlayerData.StatPoints) do
+					spentPoints = spentPoints + amount
+				end
+				local pointsAvailable = totalPoints - spentPoints
+
+                -- 2. ดึงเลเวลของแต่ละสาย (ใช้ชื่อตามหน้า UI)
+				local masteryLv = PlayerData.StatPoints.Mastery or 1
+				local damageLv = PlayerData.StatPoints.Damage or 1
+				local luckLv = PlayerData.StatPoints.Luck or 1
+				local yenLv = PlayerData.StatPoints.Yen or 1
+
+                -- 3. เตรียมข้อความสรุป (ใช้สูตร Buff Lv * 5 ตามสคริปต์เกม)
+				local descText = string.format("✨ Points Available: %d\n🔮 Mastery Lv.%d | Buff: +%d%%\n⚔️ Damage Lv.%d | Buff: +%d%%\n🍀 Luck Lv.%d | Buff: +%d%%\n💰 Yen Lv.%d | Buff: +%d%%", pointsAvailable, masteryLv, masteryLv * 5, damageLv, damageLv * 5, luckLv, luckLv * 5, yenLv, yenLv * 5)
+
+                -- 4. อัปเดตลงใน UI
+				pcall(function()
+					StatsProgressUI:SetTitle("📊 Character Stats Overview")
+					StatsProgressUI:SetDesc(descText)
+				end)
+			end
+			if PlayerData.YenUpgrades then
+				local YenUpgrades = PlayerData.YenUpgrades or {}
+
+                -- [ส่วนที่เพิ่ม] ดึงยอดเงินปัจจุบันมาแสดงผลที่หัวข้อใหญ่
+				local currentYen = PlayerData.Attributes and PlayerData.Attributes.Yen or 0
+				YenProgressUI:SetTitle(string.format("Yen", FormatNumber(currentYen)))
+				YenProgressUI:SetDesc(string.format("Amount: %s", FormatNumber(currentYen)))
+				for name, toggleUI in pairs(YenToggleUI) do
+					local currentLevel = YenUpgrades[name] or 0
+					local maxLevel = YenUpgradeConfig[name].MaxLevel or 0
+					pcall(function()
+                        -- 1. จัดการ Title และสถานะ MAX
+						-- if currentLevel == nil then
+						-- 	toggleUI:SetTitle(name .. " 🔒")
+						-- 	toggleUI:SetDesc("Status: Locked")
+						-- 	toggleUI:Lock()
+						if currentLevel >= maxLevel then
+							toggleUI:SetTitle(name .. " [MAX] ✅")
+							toggleUI:SetDesc(string.format("Buff: +%s%%", GetYenBuff(name, currentLevel)))
+							toggleUI:Lock()
+							if State["YenSelected" .. name] then
+								State["YenSelected" .. name] = false
+								toggleUI:Set(false)
+							end
+						else
+							local cost = GetYenCost(currentLevel);
+							toggleUI:SetTitle(name .. " [" .. currentLevel .. "/" .. maxLevel .. "]")
+							toggleUI:SetDesc(string.format("Cost: %s | Buff: +%s%%", FormatNumber(cost), FormatNumber(GetYenBuff(name, currentLevel))))
+							toggleUI:Unlock()
+						end
+					end)
+				end
+			end
+			if PlayerData.TokenUpgrades then
+				local TokenUpgrades = PlayerData.TokenUpgrades
+				for name, toggleUI in pairs(TokenToggleUI) do
+					local currentLevel = TokenUpgrades[name]
+					local config = TokenUpgradeConfig[name]
+					local maxLevel = config and config.MaxLevel or 0
+
+                    -- [ส่วนที่เพิ่ม] ดึงยอดเงินปัจจุบันมาแสดงผลที่หัวข้อใหญ่
+					local currentToken = PlayerData.Materials and PlayerData.Materials.UpgradeToken or 0
+					TokenProgressUI:SetTitle(string.format("Upgrade Shard", FormatNumber(currentToken)))
+					TokenProgressUI:SetDesc(string.format("Amount: %s", FormatNumber(currentToken)))
+					pcall(function()
+						-- if currentLevel == nil then
+                        --     -- สถานะล็อก (🔒)
+						-- 	toggleUI:SetTitle(name .. " 🔒")
+						-- 	toggleUI:SetDesc("Status: Locked")
+						-- 	toggleUI:Lock()
+						if currentLevel >= maxLevel then
+                            -- สถานะอัปเกรดเต็ม (MAX)
+							toggleUI:SetTitle(name .. " [MAX] ✅")
+                            -- ดึงค่า Buff มาแสดงผล
+							local buffValue = GetTokenBuff(name, currentLevel)
+							toggleUI:SetDesc(string.format("Buff: +%s%%", FormatNumber(buffValue)))
+							toggleUI:Lock()
+						else
+                            -- สถานะกำลังอัปเกรด
+							toggleUI:Unlock()
+							toggleUI:SetTitle(name .. " [" .. currentLevel .. "/" .. maxLevel .. "]")
+
+                            -- สำคัญ: ตรวจสอบว่า GetTokenCost ต้องการ (level, name) หรือไม่
+							local cost = GetTokenCost(currentLevel, name)
+							local buffValue = GetTokenBuff(name, currentLevel)
+
+                            -- แสดงข้อมูลราคา, บัฟ และจำนวน Token ที่มี
+							toggleUI:SetDesc(string.format("Cost: %s | Buff: +%s%%", FormatNumber(cost), FormatNumber(buffValue)))
+						end
+					end)
+				end
+			end
+		end
+		task.wait(2)
+	end
+end)
+
+
 
 Window:SelectTab(1);
