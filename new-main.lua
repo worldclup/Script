@@ -531,23 +531,56 @@ local function LogicGamemodes()
             -- State.GamemodeSession.Mode = targetValue
             -- State.GamemodeSession.StartTime = os.clock()
 
-            if os.time() - refreshTimer > 1 then
-                RefreshEnemyData()
-                refreshTimer = os.time()
-            end
+            -- if os.time() - refreshTimer > 1 then
+            --     RefreshEnemyData()
+            --     refreshTimer = os.time()
+            -- end
 
-            for _, enemyList in pairs(GlobalEnemyMap) do
-                for _, enemyObj in ipairs(enemyList) do
-                    if enemyObj.Alive and enemyObj.Data and enemyObj.Data.CFrame then
-                        if hrp then
-                            hrp.CFrame = enemyObj.Data.CFrame * CFrame.new(0, 0, -5)
+            -- for _, enemyList in pairs(GlobalEnemyMap) do
+            --     for _, enemyObj in ipairs(enemyList) do
+            --         if enemyObj.Alive and enemyObj.Data and enemyObj.Data.CFrame then
+            --             if hrp then
+            --                 hrp.CFrame = enemyObj.Data.CFrame * CFrame.new(0, 0, -5)
+            --             end
+            --             if enemyObj.Uid then
+            --                 pcall(function()
+            --                     Unreliable:FireServer("Hit", { enemyObj.Uid })
+            --                 end)
+            --             end
+            --         end
+            --     end
+            -- end
+            local EnemiesFolder = Workspace:FindFirstChild("Enemies")
+            if EnemiesFolder then
+                for _, enemy in ipairs(EnemiesFolder:GetChildren()) do
+                    -- ดึงข้อมูลเบื้องต้น
+                    local humanoid = enemy:FindFirstChildOfClass("Humanoid")
+                    local uid = enemy:GetAttribute("Uid") or (enemy:FindFirstChild("Uid") and enemy.Uid.Value)
+
+                    -- ตราบใดที่มอนสเตอร์ยังอยู่ และ เลือดยังไม่หมด (หรือยังไม่ตาย)
+                    while enemy and enemy.Parent == EnemiesFolder and (not humanoid or humanoid.Health > 0) do
+                        -- ตรวจสอบเงื่อนไขหยุด Loop (กรณีปิด Script หรือออกจากโซน)
+                        if not State.AutoDungeon or not IsInGamemodeZone() then break end
+
+                        if enemy.PrimaryPart and hrp then
+                            -- Teleport ไปเกาะมอนสเตอร์
+                            hrp.CFrame = enemy.PrimaryPart.CFrame * CFrame.new(0, 0, -5)
+
+                            -- ส่งคำสั่งตี
+                            if uid then
+                                pcall(function()
+                                    Unreliable:FireServer("Hit", { uid })
+                                end)
+                            end
+                        else
+                            -- ถ้า PrimaryPart หายไป (มอนสเตอร์อาจจะสลายตัว) ให้หลุดลูปนี้
+                            break 
                         end
-                        if enemyObj.Uid then
-                            pcall(function()
-                                Unreliable:FireServer("Hit", { enemyObj.Uid })
-                            end)
-                        end
+
+                        task.wait(0.1) -- ความเร็วในการตีและเช็คสถานะซ้ำ
                     end
+
+                    -- เมื่อหลุดจาก while แปลว่าตัวนี้ตายหรือหายไปแล้ว loop 'for' จะไปตัวถัดไปเอง
                 end
             end
 
