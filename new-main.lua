@@ -151,6 +151,8 @@ end);
 --- Window UI
 ------------------------------------------------------------------------------------
 local UI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/components/loading-aw.lua"))()
+
 local Window = UI:CreateWindow({
     -- Title = "🅳🅴🅺 🅳🅴🆅 🅷🆄🅱",
     Title = "DEK DEV HUB", -- "🅳🅴🅺 🅳🅴🆅 🅷🆄🅱",
@@ -175,6 +177,14 @@ local Window = UI:CreateWindow({
 		Draggable = true,
 	},
 })
+
+do
+    Window:Tag({
+        Title = "v1.0.1",
+        Icon = "github",
+        Color = Color3.fromHex("#50C878")
+    })
+end
 
 Window:OnDestroy(function()
 	State.AutoFarm = false;
@@ -2176,6 +2186,24 @@ SettingTab:Toggle({
 			end);
 		end;
 	end
+});
+----------------------------------------------------------------
+-- Auto Fuse Weapons
+----------------------------------------------------------------
+SettingTab:Dropdown({
+    Title = "Select Theme",
+    Values = {
+        "Dark", "Light"
+    },
+    Multi = false,
+    Default = "Dark",
+    Callback = function(v)
+        -- ลองใช้คำสั่งนี้ครับ
+        UI:SetTheme(v) 
+        
+        -- ถ้ายังไม่ได้ ให้ลองใช้ Window:SetTheme(v) (ขึ้นอยู่กับเวอร์ชันของ WindUI)
+        -- Window:SetTheme(v) 
+    end
 });
 ------------------------------------------------------------------------------------
 ---
