@@ -1255,7 +1255,6 @@ local function LeaveGamemode(mode)
 			"OnePiece2"
 		})
 	end
-
 end
 ----------------------------------------------------------------
 -- Check Auto Leave

@@ -110,6 +110,12 @@ local State = {
 	AutoFarm = false,
 	AutoDungeon = false,
     AutoUseKey = false,
+    DungeonRoom = 50,
+    RaidWave = 500,
+	DefenseWave = 200,
+	ShadowGateWave = 500,
+	PirateTowerFloor = 100,
+    AutoLeave = false,
 	AutoFuse = false,
 	AutoRankUp = false,
     SelectedStat = nil,
@@ -174,6 +180,12 @@ Window:OnDestroy(function()
 	State.AutoFarm = false;
 	State.AutoDungeon = false;
     State.AutoUseKey = false;
+    State.DungeonRoom = 50;
+    State.RaidWave = 500;
+    State.DefenseWave = 200;
+    State.ShadowGateWave = 500;
+    State.PirateTowerFloor = 100;
+    State.AutoLeave = false;
 	State.AutoFuse = false;
 	State.AutoRankUp = false;
     State.SelectedStat = nil;
@@ -193,6 +205,133 @@ Window:OnDestroy(function()
 		-- SaveZoneConfig(CurrentZoneName, State.SelectedEnemy);
 	end;
 end);
+------------------------------------------------------------------------------------
+---
+------------------------------------------------------------------------------------
+local function GetZone()
+	local zonesFolder = Workspace:FindFirstChild("Zones")
+	if not zonesFolder then
+		return nil
+	end
+	for _, z in ipairs(zonesFolder:GetChildren()) do
+		if z:IsA("Folder") and # z:GetChildren() > 0 then
+			return z.Name
+			-- break
+		end
+	end
+	return nil
+end
+----------------------------------------------------------------
+-- Leave Gamemode
+----------------------------------------------------------------
+local function LeaveGamemode(mode)
+	if mode == "Dungeon" or mode == "Raid" then
+		Reliable:FireServer("Zone Teleport", {
+			"Dungeon"
+		})
+	elseif mode == "Defense" then
+		Reliable:FireServer("Zone Teleport", {
+			"Paradis"
+		})
+	elseif mode == "ShadowGate" then
+		Reliable:FireServer("Zone Teleport", {
+			"SoloLevel"
+		})
+	elseif mode == "PirateTower" then
+		Reliable:FireServer("Zone Teleport", {
+			"OnePiece2"
+		})
+	end
+end
+----------------------------------------------------------------
+--- Get Current Gamemode From Zone
+----------------------------------------------------------------
+local function GetCurrentGamemodeFromZone()
+	local zone = GetZone()
+	if not zone then
+		return nil
+	end
+    if zone:match("^Dungeon") then
+		return "Dungeon"
+	elseif zone:match("^Raid") then
+		return "Raid"
+	elseif zone:match("^Defense") then
+		return "Defense"
+	elseif zone:match("^Dungeon") then
+		return "Dungeon"
+	elseif zone:match("ShadowGate") then
+		return "ShadowGate"
+	elseif zone:match("PirateTower") then
+		return "PirateTower"
+	end
+	return nil
+end
+----------------------------------------------------------------
+--- Get Gamemode Progress
+----------------------------------------------------------------
+local function GetGamemodeProgress()
+	local mode = GetCurrentGamemodeFromZone()
+	if not mode then
+		return
+	end
+
+	local gui = LocalPlayer:FindFirstChild("PlayerGui")
+	if not gui then
+		return
+	end
+	local screen = gui:FindFirstChild("Screen")
+	if not screen then
+		return
+	end
+	local hud = screen:FindFirstChild("Hud")
+	if not hud then
+		return
+	end
+	local gm = hud:FindFirstChild("gamemode")
+	if not gm then
+		return
+	end
+	local node = gm:FindFirstChild(mode)
+	if not node then
+		return
+	end
+
+    -- Raid / Defense / ShadowGate ใช้ wave
+	if node:FindFirstChild("room") and node.room:FindFirstChild("amount") then
+		local txt = node.room.amount.Text
+		return mode, tonumber(txt:match("%d+"))
+	end
+
+    -- Raid / Defense / ShadowGate ใช้ wave
+	if node:FindFirstChild("wave") and node.wave:FindFirstChild("amount") then
+		local txt = node.wave.amount.Text
+		return mode, tonumber(txt:match("%d+"))
+	end
+
+    -- PirateTower ใช้ floor
+	if node:FindFirstChild("floor") and node.floor:FindFirstChild("amount") then
+		local txt = node.floor.amount.Text
+		return mode, tonumber(txt:match("%d+"))
+	end
+end
+----------------------------------------------------------------
+--- Check Auto Leave
+----------------------------------------------------------------
+local function CheckAutoLeave()
+    local mode, value = GetGamemodeProgress()
+
+    if mode == "Dungeon" and value >= State.DungeonRoom then
+		LeaveGamemode("Dungeon")
+	elseif mode == "Raid" and value >= State.RaidWave then
+		LeaveGamemode("Raid")
+	elseif mode == "Defense" and value >= State.DefenseWave then
+		LeaveGamemode("Defense")
+	elseif mode == "ShadowGate" and value >= State.ShadowGateWave then
+		LeaveGamemode("ShadowGate")
+	elseif mode == "PirateTower" and value >= State.PirateTowerFloor then
+		LeaveGamemode("PirateTower")
+	end
+end
 ----------------------------------------------------------------
 --- Apply Vault Equip Best
 ----------------------------------------------------------------
@@ -396,19 +535,6 @@ end
 ------------------------------------------------------------------------------------
 ---
 ------------------------------------------------------------------------------------
-local function GetZone()
-	local zonesFolder = Workspace:FindFirstChild("Zones")
-	if not zonesFolder then
-		return nil
-	end
-	for _, z in ipairs(zonesFolder:GetChildren()) do
-		if z:IsA("Folder") and # z:GetChildren() > 0 then
-			return z.Name
-			-- break
-		end
-	end
-	return nil
-end
 local function isPlayerInZone(zone)
 	local chars = zone:FindFirstChild("Characters");
 	if chars and chars:FindFirstChild(LocalPlayer.Name) then
@@ -517,6 +643,7 @@ local function LogicGamemodes()
 
                 if joinTarget and not State.GamemodeSession.Active and not inGamemodeZone then
                     JoinGamemode(joinTarget)
+                    State.GamemodeSession.Mode = targetValue
                 end
 
                 if State.AutoUseKey and joinTarget and not State.GamemodeSession.Active and not inGamemodeZone then
@@ -527,6 +654,7 @@ local function LogicGamemodes()
                     	}
                     }
                     Reliable:FireServer(unpack(args))
+                    State.GamemodeSession.Mode = targetValue
                     task.wait(5)
                 end
             end
@@ -540,6 +668,9 @@ local function LogicGamemodes()
                 ApplyVaultEquipBest(State.SelectedEquipBestGamemode)
             end
             State.GamemodeSession.Active = true
+            if State.AutoLeave then
+                CheckAutoLeave()
+            end
             -- State.GamemodeSession.Mode = targetValue
             -- State.GamemodeSession.StartTime = os.clock()
 
@@ -671,15 +802,19 @@ FarmTab:Toggle({
 ------------------------------------------------------------------------------------
 --- MainSection Tab 2
 ------------------------------------------------------------------------------------
-local GamemodeTap = MainSection:Tab({
+local GamemodeTab = MainSection:Tab({
 	Title = "Gamemode",
 	Icon = "skull",
     IconColor = Mythic,
 	IconShape = "Square",
 });
 
+GamemodeTab:Section({
+	Title = "Gamemode",
+	TextSize = 14,
+})
 
-GamemodeTap:Dropdown({
+GamemodeTab:Dropdown({
 	Title = "Select Gamemode",
     Desc = "Select specific gamemodes for the auto-join system",
 	Values = GetAllGamemodesUnified(),
@@ -694,7 +829,7 @@ GamemodeTap:Dropdown({
 	end
 })
 
-GamemodeTap:Toggle({
+GamemodeTab:Toggle({
 	Title = "Auto Join & Kill",
     Desc = "Automatically join gamemodes and kill all enemies",
 	Flag = "AutoDungeon_Cfg",
@@ -706,12 +841,103 @@ GamemodeTap:Toggle({
 	end
 });
 
-GamemodeTap:Toggle({
+GamemodeTab:Toggle({
 	Title = "Auto Use Key",
     Desc = "Automatically use keys to create gamemodes",
 	Flag = "AutoDungeon_Cfg",
 	Callback = function(val)
 		State.AutoUseKey = val;
+	end
+});
+------------------------------------------------------------------------------------
+--- MainSection Tab 3 Limit Gamemode
+------------------------------------------------------------------------------------
+GamemodeTab:Section({
+	Title = "Gamemode Limit",
+	TextSize = 14,
+})
+local GamemodeTabGroup1 = GamemodeTab:Group({})
+GamemodeTabGroup1:Input({
+	Title = "Dungeon Room",
+    -- Desc = "Automatically exit the Dungeon after reaching this stage",
+	Value = State.DungeonRoom,
+	Type = "Input",
+	Callback = function(v)
+		local num = tonumber(v)
+		if not num then
+			warn("Input Number!!!")
+			return
+		end
+		State.DungeonRoom = num
+	end
+})
+
+GamemodeTabGroup1:Input({
+	Title = "Raid Wave",
+    -- Desc = "Automatically exit the Raid after reaching this stage",
+	Value = State.RaidWave,
+	Type = "Input",
+	Callback = function(v)
+		local num = tonumber(v)
+		if not num then
+			warn("Input Number!!!")
+			return
+		end
+		State.RaidWave = num
+	end
+})
+local GamemodeTabGroup2 = GamemodeTab:Group({})
+GamemodeTabGroup2:Input({
+	Title = "Defense Wave",
+    -- Desc = "Automatically exit the Defense after reaching this stage",
+	Value = State.DefenseWave,
+	Type = "Input",
+	Callback = function(v)
+		local num = tonumber(v)
+		if not num then
+			warn("Input Number!!!")
+			return
+		end
+		State.DefenseWave = num
+	end
+})
+
+GamemodeTabGroup2:Input({
+	Title = "Shadow Gate Wave",
+    -- Desc = "Automatically exit the Shadow Gate after reaching this stage",
+	Value = State.ShadowGateWave,
+	Type = "Input",
+	Callback = function(v)
+		local num = tonumber(v)
+		if not num then
+			warn("Input Number!!!")
+			return
+		end
+		State.ShadowGateWave = num
+	end
+})
+local GamemodeTabGroup3 = GamemodeTab:Group({})
+GamemodeTabGroup3:Input({
+	Title = "Pirate Tower Floor",
+    -- Desc = "Automatically exit the Pirate Tower after reaching this stage",
+	Value = State.PirateTowerFloor,
+	Type = "Input",
+	Callback = function(v)
+		local num = tonumber(v)
+		if not num then
+			warn("Input Number!!!")
+			return
+		end
+		State.PirateTowerFloor = num
+	end
+})
+
+GamemodeTabGroup3:Toggle({
+	Title = "Auto Leave",
+    Desc = "Automatically leave when reaching the target stage",
+	Flag = "AutoDungeon_Cfg",
+	Callback = function(val)
+		State.AutoLeave = val;
 	end
 });
 ------------------------------------------------------------------------------------
