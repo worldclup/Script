@@ -216,7 +216,6 @@ local function ApplyVaultEquipBest(typeName)
 		Duration = 3, -- 3 seconds
 		Icon = IconNoti[typeName],
 	})
-		
 end
 ------------------------------------------------------------------------------------
 --- Refresh Enemy Data
@@ -587,7 +586,7 @@ local function LogicGamemodes()
                             end
                         else
                             -- ถ้า PrimaryPart หายไป (มอนสเตอร์อาจจะสลายตัว) ให้หลุดลูปนี้
-                            break 
+                            break
                         end
 
                         task.wait(0.1) -- ความเร็วในการตีและเช็คสถานะซ้ำ
@@ -1009,14 +1008,14 @@ task.spawn(function()
                     "🔮 Mastery Lv.%d | Buff: +%d%%\n" ..
                     "⚔️ Damage Lv.%d | Buff: +%d%%\n" ..
                     "🍀 Luck Lv.%d | Buff: +%d%%\n" ..
-                    "💰 Yen Lv.%d | Buff: +%d%%", 
-                    masteryLv, LevelUpModule.GetBuff(masteryLv), 
-                    damageLv, LevelUpModule.GetBuff(damageLv), 
-                    luckLv, LevelUpModule.GetBuff(luckLv), 
+                    "💰 Yen Lv.%d | Buff: +%d%%",
+                    masteryLv, LevelUpModule.GetBuff(masteryLv),
+                    damageLv, LevelUpModule.GetBuff(damageLv),
+                    luckLv, LevelUpModule.GetBuff(luckLv),
                     yenLv, LevelUpModule.GetBuff(yenLv)
                 )
                 local descToggleText = string.format("Points Available: %d", pointsAvailable)
-            
+
                 -- 5. อัปเดตลงใน UI
                 pcall(function()
                     -- ✨ แสดงผล Level [193/200] หรือถ้าเกิดใหม่ 1 รอบจะเป็น [193/210]
@@ -1536,8 +1535,8 @@ for _, zoneInfo in ipairs(zones) do
                     Display = config.Display,
                     MaxLevel = config.MAX_LEVEL or 100,
                     -- ดึงฟังก์ชันมาเก็บไว้เรียกใช้ใน Loop
-                    GetCost = config.GetCost, 
-                    GetChance = config.GetChance 
+                    GetCost = config.GetCost,
+                    GetChance = config.GetChance
                 }
             end
         end
@@ -1571,7 +1570,7 @@ for _, zoneInfo in ipairs(zones) do
     end
 end
 ----------------------------------------------------------------
--- 
+--
 ----------------------------------------------------------------
 task.spawn(function()
     while true do
@@ -1582,7 +1581,7 @@ task.spawn(function()
         -- ใช้ Window.Opened หรือเช็คสถานะจาก Library ของคุณ เพื่อหยุดการทำงานขณะพับสคริปต์
         if not Window.Closed then
             local PlayerData = GetPlayerData()
-            
+
             if PlayerData and PlayerData.Materials then
                 local TrainerLevels = PlayerData.CrateUpgrades or {}
 
@@ -1592,11 +1591,11 @@ task.spawn(function()
                     if configData then
                         local tokenKey = configData.Material or (name .. "Token")
                         local currentAmount = PlayerData.Materials[tokenKey] or 0
-                        
+
                         -- เช็ค Max Level
                         local targetMaxLevel = configData.MaxLevel
                         local isMaxed = PlayerData.Vault and PlayerData.Vault[name] and PlayerData.Vault[name][targetMaxLevel] == true
-                        
+
                         pcall(function()
                             if isMaxed then
                                 toggleUI:SetTitle(name .. " [MAX] ✅")
@@ -1629,13 +1628,13 @@ task.spawn(function()
                                 if countNum and countNum > highestGachaCount then
                                     highestGachaCount = countNum
                                     -- ✨ เลเวลที่แท้จริงคือ Value (ในรูปคือ 50)
-                                    currentLevel = tonumber(gachaLevel) or 0 
+                                    currentLevel = tonumber(gachaLevel) or 0
                                 end
                             end
                         elseif type(gachaData) == "number" then
                             currentLevel = gachaData
                         end
-                    
+
                         -- 2. ข้อมูลจาก Config
                         local targetMaxLevel = tonumber(configData.MaxLevel) or 100
                         local tokenKey = configData.Material or (name .. "Token")
@@ -1657,7 +1656,7 @@ task.spawn(function()
                                 toggleUI:SetTitle(string.format("%s [%d/%d]", name, currentLevel, targetMaxLevel))
                                 toggleUI:Unlock()
                             end
-                        
+
                             -- 4. คำอธิบาย
                             local detailText = ""
                             if not isMaxed then
@@ -1666,7 +1665,7 @@ task.spawn(function()
                             else
                                 detailText = "\n✨ Max Level Reached!"
                             end
-                        
+
                             toggleUI:SetDesc(string.format("%s Token: %s%s", configData.Display or name, FormatNumber(currentAmount), detailText))
                         end)
                     end
@@ -1786,7 +1785,7 @@ task.spawn(function()
                         elseif type(gachaData) == "number" then
                             currentLevel = gachaData
                         end
-                    
+
                         local maxLevel = tonumber(configData.MaxLevel) or 100
 
                         -- 2. ตรวจสอบว่าเลเวลยังไม่เต็ม
@@ -1797,7 +1796,7 @@ task.spawn(function()
                             -- 4. ตรวจสอบจำนวน Material (Token)
                             local tokenKey = configData.Material or (name .. "Token")
                             local currentAmount = (PlayerData.Materials and PlayerData.Materials[tokenKey]) or 0
-                        
+
                             -- 5. เงื่อนไข: ถ้า Token พอ ให้ส่งคำสั่งอัปเกรด
                             if currentAmount >= cost then
                                 -- ⚠️ หมายเหตุ: ตรวจสอบชื่อ Remote ให้ตรงกับระบบ Gacha Upgrade ของคุณ
@@ -1805,11 +1804,10 @@ task.spawn(function()
                                 local args = {
                                     [1] = "Crate Upgrade", -- เปลี่ยนให้ตรงกับ Remote ของระบบสุ่ม
                                     [2] = {
-                                        [1] = name, 
+                                        [1] = name,
                                     }
                                 }
                                 Reliable:FireServer(unpack(args))
-                            
                                 -- รอการตอบสนองจากเซิร์ฟเวอร์
                                 task.wait(0.5)
                             end
@@ -1940,7 +1938,7 @@ SettingTab:Toggle({
 			task.spawn(function()
 				while State.AutoFuse do
 					if Window.Destroyed then
-						break;
+						break
 					end;
 					if Reliable then
 						pcall(function()
@@ -1959,5 +1957,5 @@ SettingTab:Toggle({
 Window:SelectTab(1);
 
 Window:OnClose(function()
-   
+
 end)
