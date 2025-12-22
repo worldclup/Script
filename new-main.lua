@@ -52,6 +52,8 @@ local GamemodeModule = require(ConfigsPath.Gamemodes);
 local ZoneModule = require(ConfigsPath.Zones);
 local RollGachaModule = ConfigsPath.RollGachas;
 local RollGachaUpgradeModule = ConfigsPath.RollGachaUpgrades;
+local TrainerModule = ConfigsPath.Trainers;
+local LevelUpModule = require(ConfigsPath.General.LevelUp)
 
 local ChanceModules = {};
 local ChancePath = ReplicatedStorage.Scripts.Configs:FindFirstChild("ChanceUpgrades");
@@ -110,6 +112,7 @@ local State = {
 	AutoFuse = false,
 	AutoRankUp = false,
     SelectedStat = nil,
+    AutoAscension = false,
     YenUpgradeState = {},
     TokenUpgradeState = {},
     AutoAttackAreaUpgrade = false,
@@ -121,6 +124,8 @@ local State = {
         StartTime = 0,
     },
     GachaState = {},
+    RollUpgradeState = {},
+    TrainerState = {},
 };
 
 LocalPlayer.CharacterAdded:Connect(function(char)
@@ -168,6 +173,7 @@ Window:OnDestroy(function()
 	State.AutoFuse = false;
 	State.AutoRankUp = false;
     State.SelectedStat = nil;
+    State.AutoAscension = false;
     State.YenUpgradeState = {};
     State.TokenUpgradeState = {};
     State.AutoAttackAreaUpgrade = false;
@@ -175,6 +181,8 @@ Window:OnDestroy(function()
     State.GamemodeSession.Mode = nil;
     State.GamemodeSession.StartTime = 0;
     State.GachaState = {};
+    State.RollUpgradeState = {};
+    State.TrainerState = {};
 	if CurrentZoneName ~= "" and State.SelectedEnemy then
 		-- SaveZoneConfig(CurrentZoneName, State.SelectedEnemy);
 	end;
@@ -548,7 +556,7 @@ local MainSection = Window:Section({
 local FarmTab = MainSection:Tab({
 	Title = "Farming",
 	Icon = "swords",
-    IconColor = Green,
+    IconColor = Mythic,
 	IconShape = "Square",
 });
 
@@ -585,8 +593,8 @@ FarmTab:Toggle({
 ------------------------------------------------------------------------------------
 local GamemodeTap = MainSection:Tab({
 	Title = "Gamemode",
-	Icon = "clock-alert",
-    IconColor = Red,
+	Icon = "skull",
+    IconColor = Mythic,
 	IconShape = "Square",
 });
 
@@ -653,7 +661,7 @@ RankUpTab:Toggle({
 local StatsTab = CharacterSection:Tab({
 	Title = "Stats",
 	Icon = "coins",
-    IconColor = Blue,
+    IconColor = Divine,
 	IconShape = "Square",
 });
 
@@ -681,13 +689,20 @@ local StatsDropdownUI = StatsTab:Dropdown({
 		end
 	end
 })
+local AscensionToggle = StatsTab:Toggle({
+	Title = "Auto Ascension",
+	Value = false,
+	Callback = function(v)
+		State.AutoAttackAreaUpgrade = v
+	end
+})
 ------------------------------------------------------------------------------------
 --- CharacterSection Tab 2.5
 ------------------------------------------------------------------------------------
 local AttackAreaTab = CharacterSection:Tab({
 	Title = "Attack Area",
 	Icon = "land-plot",
-    IconColor = Success,
+    IconColor = Divine,
 	IconShape = "Square",
 });
 
@@ -710,7 +725,7 @@ local AttackAreaToggle = AttackAreaTab:Toggle({
 local YenUpgradeTab = CharacterSection:Tab({
 	Title = "Yen Upgrades",
 	Icon = "badge-japanese-yen",
-    IconColor = Yellow,
+    IconColor = Divine,
 	IconShape = "Square",
 });
 local YenToggleUI = {}
@@ -747,7 +762,7 @@ end
 local TokenUpgradeTab = CharacterSection:Tab({
 	Title = "Token Upgrades",
 	Icon = "geist:chevron-double-up",
-    IconColor = Mythic,
+    IconColor = Divine,
 	IconShape = "Square",
 });
 local TokenToggleUI = {}
@@ -830,34 +845,45 @@ task.spawn(function()
 			end
 			-- ภายใน Loop task.spawn หลักที่เช็ค PlayerData
 			if PlayerData and PlayerData.Attributes and PlayerData.StatPoints then
-                -- 1. คำนวณแต้มคงเหลือ (Points Available) ตามสูตรของเกม
-				local lv = PlayerData.Attributes.Level or 1
-				local asc = PlayerData.Attributes.Ascension or 0
-				local totalPoints = lv * (1 + asc)
-				local spentPoints = 0
-				for _, amount in pairs(PlayerData.StatPoints) do
-					spentPoints = spentPoints + amount
-				end
-				local pointsAvailable = totalPoints - spentPoints
+                -- 1. คำนวณแต้มคงเหลือ (ใช้ฟังก์ชันจาก Module ได้เลยเพื่อความแม่นยำ)
+                local pointsAvailable = LevelUpModule.CountPoints(PlayerData)
 
-                -- 2. ดึงเลเวลของแต่ละสาย (ใช้ชื่อตามหน้า UI)
-				local masteryLv = PlayerData.StatPoints.Mastery or 1
-				local damageLv = PlayerData.StatPoints.Damage or 1
-				local luckLv = PlayerData.StatPoints.Luck or 1
-				local yenLv = PlayerData.StatPoints.Yen or 1
+                -- 2. ดึงข้อมูลเลเวลและการเกิดใหม่
+                local lv = PlayerData.Attributes.Level or 1
+                local asc = PlayerData.Attributes.Ascension or 0
 
-                -- 3. เตรียมข้อความสรุป (ใช้สูตร Buff Lv * 5 ตามสคริปต์เกม)
-				-- local descText = string.format("✨ Points Available: %d\n🔮 Mastery Lv.%d | Buff: +%d%%\n⚔️ Damage Lv.%d | Buff: +%d%%\n🍀 Luck Lv.%d | Buff: +%d%%\n💰 Yen Lv.%d | Buff: +%d%%", pointsAvailable, masteryLv, masteryLv * 5, damageLv, damageLv * 5, luckLv, luckLv * 5, yenLv, yenLv * 5)
-				local descText = string.format("🔮 Mastery Lv.%d | Buff: +%d%%\n⚔️ Damage Lv.%d | Buff: +%d%%\n🍀 Luck Lv.%d | Buff: +%d%%\n💰 Yen Lv.%d | Buff: +%d%%", masteryLv, masteryLv * 5, damageLv, damageLv * 5, luckLv, luckLv * 5, yenLv, yenLv * 5)
-                local descToggleText = string.format("✨ Points Available: %d", pointsAvailable)
+                -- ✨ 3. คำนวณ Max Level ตาม Ascension ปัจจุบัน
+                -- สูตรใน Module คือ: 200 + (10 * Ascension)
+                local maxLv = LevelUpModule.GetMaxLevel(asc)
 
-                -- 4. อัปเดตลงใน UI
-				pcall(function()
-					-- StatsProgressUI:SetTitle("📊 Character Stats Overview")
-					StatsProgressUI:SetDesc(descText)
+                -- 4. ดึงข้อมูล Stat และคำนวณ Buff (ใช้ฟังก์ชัน GetBuff จาก Module)
+                local masteryLv = PlayerData.StatPoints.Mastery or 1
+                local damageLv = PlayerData.StatPoints.Damage or 1
+                local luckLv = PlayerData.StatPoints.Luck or 1
+                local yenLv = PlayerData.StatPoints.Yen or 1
+
+                local descText = string.format(
+                    "🔮 Mastery Lv.%d | Buff: +%d%%\n" ..
+                    "⚔️ Damage Lv.%d | Buff: +%d%%\n" ..
+                    "🍀 Luck Lv.%d | Buff: +%d%%\n" ..
+                    "💰 Yen Lv.%d | Buff: +%d%%", 
+                    masteryLv, LevelUpModule.GetBuff(masteryLv), 
+                    damageLv, LevelUpModule.GetBuff(damageLv), 
+                    luckLv, LevelUpModule.GetBuff(luckLv), 
+                    yenLv, LevelUpModule.GetBuff(yenLv)
+                )
+                local descToggleText = string.format("Points Available: %d", pointsAvailable)
+            
+                -- 5. อัปเดตลงใน UI
+                pcall(function()
+                    -- ✨ แสดงผล Level [193/200] หรือถ้าเกิดใหม่ 1 รอบจะเป็น [193/210]
+                    StatsProgressUI:SetTitle(string.format("Level [%d/%d]", lv, maxLv))
+
+                    StatsProgressUI:SetDesc(descText)
                     StatsDropdownUI:SetDesc(descToggleText)
-				end)
-			end
+                    AscensionToggle:SetDesc(string.format("Ascension: %d", asc))
+                end)
+            end
             if PlayerData.AttackArea then
                 local AttackAreaUpgrades = PlayerData.AttackArea or {}
 
@@ -1097,7 +1123,7 @@ local GachaSection = Window:Section({
 local GachaRoll = GachaSection:Tab({
 	Title = "Rolls",
 	Icon = "dices",
-	IconColor = Grey,
+	IconColor = Purple,
 	IconShape = "Square",
 })
 ------------------------------------------------------------------------------------
@@ -1150,6 +1176,17 @@ local function GetGachaConfig(name)
         -- ถ้าไม่เจอ หาใน RollGachaUpgrades
         file = RollGachaUpgradeModule:FindFirstChild(name)
     end
+    if file and file:IsA("ModuleScript") then
+        return require(file)
+    end
+    return nil
+end
+------------------------------------------------------------------------------------
+---
+------------------------------------------------------------------------------------
+local function GetRollUpgradeConfig(name)
+    -- หาไฟล์ใน RollGachas ก่อน
+    local file = RollGachaUpgradeModule:FindFirstChild(name)
     if file and file:IsA("ModuleScript") then
         return require(file)
     end
@@ -1212,28 +1249,213 @@ for _, zoneInfo in ipairs(zones) do
     end
 end
 ----------------------------------------------------------------
--- Loop
+-- [ส่วนเพิ่มเติม] ฟังก์ชันจัดการ UI ตอนสุ่ม (Anti-Animation)
+----------------------------------------------------------------
+task.spawn(function()
+	local Players = game:GetService("Players")
+	local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+	while true do
+		if Window.Destroyed then
+			break
+		end
+
+        -- 1. เช็คว่าตอนนี้เราเปิด Auto Roll ตัวไหนทิ้งไว้บ้างไหม
+		local isRolling = false
+		for name, isActive in pairs(State.GachaState) do
+			if isActive then
+				isRolling = true
+				break
+			end
+		end
+
+        -- 2. ถ้ากำลังสุ่มอยู่ ให้รันตรรกะปิด Animation และบังคับเปิด HUD
+		if isRolling then
+            -- ปิดหน้าต่างสุ่ม (Crate) เพื่อไม่ให้แสดง Animation
+			local CrateUI = PlayerGui:FindFirstChild("Crate")
+			if CrateUI then
+				CrateUI.Parent = nil
+			end
+
+            -- บังคับให้หน้าจอหลัก (HUD) แสดงผลตลอดเวลา
+			local ScreenUI = PlayerGui:FindFirstChild("Screen")
+			if ScreenUI and (not ScreenUI.Enabled) then
+				ScreenUI.Enabled = true
+			end
+
+            -- บังคับเปิดแถบเมนูด้านบนของ Roblox
+			local Topbar = PlayerGui:FindFirstChild("TopbarStandard")
+			if Topbar and (not Topbar.Enabled) then
+				Topbar.Enabled = true
+			end
+		end
+		task.wait(0.5) -- เช็คทุกๆ 0.5 วินาทีตามต้นฉบับ
+	end
+end)
+------------------------------------------------------------------------------------
+--- GachaSection Tab 1.5
+------------------------------------------------------------------------------------
+local RollUpgradeTap = GachaSection:Tab({
+	Title = "Roll Upgrades",
+	Icon = "package-plus",
+	IconColor = Purple,
+	IconShape = "Square",
+})
+------------------------------------------------------------------------------------
+---
+------------------------------------------------------------------------------------
+local RollUpgradeToggleUI = {}
+local RollUpgradeConfigCache = {}
+for _, zoneInfo in ipairs(zones) do
+    for zoneName, screenList in pairs(zoneInfo) do
+        -- 1. ตารางเก็บ Screen ที่พบในโฟลเดอร์ที่กำหนด
+        local validRollUpgradeInZone = {}
+
+        for _, screenName in ipairs(screenList) do
+            local config = GetRollUpgradeConfig(screenName)
+            if config then
+                table.insert(validRollUpgradeInZone, screenName)
+                -- เก็บข้อมูลที่ดึงมาจาก Config ลง Cache
+
+                RollUpgradeConfigCache[screenName] = {
+                    Material = config.UpgradeMaterial,
+                    Display = config.Display,
+                    MaxLevel = config.MaxLevel or 50,
+                }
+            end
+        end
+
+        -- 2. สร้าง UI เฉพาะโซนที่มีรายการ Gacha หรือ Upgrade เท่านั้น
+        if #validRollUpgradeInZone > 0 then
+            RollUpgradeTap:Section({
+                Title = zoneName,
+                TextSize = 14
+            })
+
+            local currentGroup = nil
+            for i, gachaName in ipairs(validRollUpgradeInZone) do
+                -- จัดกลุ่ม Toggle ทีละ 2 ปุ่ม
+                if i % 2 == 1 then
+                    currentGroup = RollUpgradeTap:Group({})
+                end
+
+                -- สร้าง State และ Toggle สำหรับรายการนั้นๆ
+                State.RollUpgradeState[gachaName] = false
+
+                RollUpgradeToggleUI[gachaName] = currentGroup:Toggle({
+                    Title = gachaName,
+                    Value = false,
+                    Callback = function(v)
+                        State.RollUpgradeState[gachaName] = v
+                    end
+                })
+            end
+        end
+    end
+end
+------------------------------------------------------------------------------------
+--- GachaSection Tab 2
+------------------------------------------------------------------------------------
+local TrainerUpgradeTab = GachaSection:Tab({
+	Title = "Trainers",
+	Icon = "box",
+	IconColor = Purple,
+	IconShape = "Square",
+})
+------------------------------------------------------------------------------------
+---
+------------------------------------------------------------------------------------
+local function GetTrainerConfig(name)
+    -- หาไฟล์ใน RollGachas ก่อน
+    local file = TrainerModule:FindFirstChild(name)
+    if file and file:IsA("ModuleScript") then
+        return require(file)
+    end
+    return nil
+end
+------------------------------------------------------------------------------------
+---
+------------------------------------------------------------------------------------
+local TrainerToggleUI = {}
+local TrainerConfigCache = {}
+for _, zoneInfo in ipairs(zones) do
+    for zoneName, screenList in pairs(zoneInfo) do
+        -- 1. ตารางเก็บ Screen ที่พบในโฟลเดอร์ที่กำหนด
+        local validTrainersInZone = {}
+
+        for _, screenName in ipairs(screenList) do
+            local config = GetTrainerConfig(screenName)
+            if config then
+                table.insert(validTrainersInZone, screenName)
+                -- เก็บข้อมูลที่ดึงมาจาก Config ลง Cache
+
+                TrainerConfigCache[screenName] = {
+                    Material = config.TOKEN_NAME,
+                    Display = config.Display,
+                    MaxLevel = config.MAX_LEVEL or 100,
+                    -- ดึงฟังก์ชันมาเก็บไว้เรียกใช้ใน Loop
+                    GetCost = config.GetCost, 
+                    GetChance = config.GetChance 
+                }
+            end
+        end
+
+        -- 2. สร้าง UI เฉพาะโซนที่มีรายการ Gacha หรือ Upgrade เท่านั้น
+        if #validTrainersInZone > 0 then
+            TrainerUpgradeTab:Section({
+                Title = zoneName,
+                TextSize = 14
+            })
+
+            local currentGroup = nil
+            for i, gachaName in ipairs(validTrainersInZone) do
+                -- จัดกลุ่ม Toggle ทีละ 2 ปุ่ม
+                if i % 2 == 1 then
+                    currentGroup = TrainerUpgradeTab:Group({})
+                end
+
+                -- สร้าง State และ Toggle สำหรับรายการนั้นๆ
+                State.TrainerState[gachaName] = false
+
+                TrainerToggleUI[gachaName] = currentGroup:Toggle({
+                    Title = gachaName,
+                    Value = false,
+                    Callback = function(v)
+                        State.TrainerState[gachaName] = v
+                    end
+                })
+            end
+        end
+    end
+end
+----------------------------------------------------------------
+-- 
 ----------------------------------------------------------------
 task.spawn(function()
     while true do
+        -- 1. หยุดทำงานทันทีถ้าทำลาย Window ไปแล้ว
         if Window.Destroyed then break end
+
+        -- 2. ตรวจสอบสถานะ Window: จะทำงานเฉพาะตอนที่ UI เปิดอยู่เท่านั้น
+        -- ใช้ Window.Opened หรือเช็คสถานะจาก Library ของคุณ เพื่อหยุดการทำงานขณะพับสคริปต์
         if not Window.Closed then
             local PlayerData = GetPlayerData()
+            
             if PlayerData and PlayerData.Materials then
+                local TrainerLevels = PlayerData.CrateUpgrades or {}
+
+                -- --- [ ส่วนของ Gacha / Rolls ] ---
                 for name, toggleUI in pairs(RollToggleUI) do
-                    -- ดึงค่าจาก Cache ที่เราดึงมาจาก Module ตรงๆ
                     local configData = RollConfigCache[name]
                     if configData then
                         local tokenKey = configData.Material or (name .. "Token")
-                        local materialDisplayName = configData.Display or name
                         local currentAmount = PlayerData.Materials[tokenKey] or 0
-                        local formattedAmount = FormatNumber(currentAmount)
-
+                        
+                        -- เช็ค Max Level
                         local targetMaxLevel = configData.MaxLevel
                         local isMaxed = PlayerData.Vault and PlayerData.Vault[name] and PlayerData.Vault[name][targetMaxLevel] == true
+                        
                         pcall(function()
                             if isMaxed then
-                                -- ถ้าเต็มแล้ว ให้ล็อกปุ่มและแสดงสถานะ MAX
                                 toggleUI:SetTitle(name .. " [MAX] ✅")
                                 if State.GachaState[name] then
                                     State.GachaState[name] = false
@@ -1241,23 +1463,134 @@ task.spawn(function()
                                 end
                                 toggleUI:Lock()
                             else
-                                -- ถ้ายังไม่เต็ม ให้ปลดล็อกปุ่มให้กดได้ปกติ (ไม่สนใจว่าปลดล็อกด่านหรือยัง)
                                 toggleUI:SetTitle(name)
                                 toggleUI:Unlock()
                             end
+                            toggleUI:SetDesc((configData.Display or name) .. " Token: " .. FormatNumber(currentAmount))
+                        end)
+                    end
+                end
 
-                            -- อัปเดตจำนวน Token ที่มี
-                            toggleUI:SetDesc(materialDisplayName .. " Token: " .. formattedAmount)
+                -- --- [ ส่วนของ Roll Upgrade ] ---
+                for name, toggleUI in pairs(RollUpgradeToggleUI) do
+                    local configData = RollUpgradeConfigCache[name]
+                    if configData then
+                        -- 1. หา Current Level โดยการดึงค่า Value จาก Key ล่าสุดใน GachaLevel
+                        local gachaData = PlayerData.GachaLevel and PlayerData.GachaLevel[name]
+                        local currentLevel = 0
+
+                        if type(gachaData) == "table" then
+                            local highestGachaCount = -1
+                            for gachaCount, gachaLevel in pairs(gachaData) do
+                                local countNum = tonumber(gachaCount)
+                                if countNum and countNum > highestGachaCount then
+                                    highestGachaCount = countNum
+                                    -- ✨ เลเวลที่แท้จริงคือ Value (ในรูปคือ 50)
+                                    currentLevel = tonumber(gachaLevel) or 0 
+                                end
+                            end
+                        elseif type(gachaData) == "number" then
+                            currentLevel = gachaData
+                        end
+                    
+                        -- 2. ข้อมูลจาก Config
+                        local targetMaxLevel = tonumber(configData.MaxLevel) or 100
+                        local tokenKey = configData.Material or (name .. "Token")
+                        local currentAmount = (PlayerData.Materials and PlayerData.Materials[tokenKey]) or 0
+
+                        -- 3. เช็คสถานะ Max
+                        local isMaxed = currentLevel >= targetMaxLevel
+
+                        pcall(function()
+                            if isMaxed then
+                                toggleUI:SetTitle(name .. " [MAX] ✅")
+                                if State.RollUpgradeState and State.RollUpgradeState[name] then
+                                    State.RollUpgradeState[name] = false
+                                    toggleUI:Set(false)
+                                end
+                                toggleUI:Lock()
+                            else
+                                -- ✨ แสดงผลเลเวล 50 ตามค่าใน Value
+                                toggleUI:SetTitle(string.format("%s [%d/%d]", name, currentLevel, targetMaxLevel))
+                                toggleUI:Unlock()
+                            end
+                        
+                            -- 4. คำอธิบาย
+                            local detailText = ""
+                            if not isMaxed then
+                                local cost = configData.GetCost and configData.GetCost(currentLevel) or 0
+                                detailText = string.format("\nCost: %d", cost)
+                            else
+                                detailText = "\n✨ Max Level Reached!"
+                            end
+                        
+                            toggleUI:SetDesc(string.format("%s Token: %s%s", configData.Display or name, FormatNumber(currentAmount), detailText))
+                        end)
+                    end
+                end
+
+                -- --- [ ส่วนของ Trainers ] ---
+                for name, toggleUI in pairs(TrainerToggleUI) do
+                    local configData = TrainerConfigCache[name]
+                    if configData then
+                        -- กำหนดค่าเริ่มต้นเป็น 0 หรือ 1 เสมอเพื่อกัน Error
+                        local currentLevel = tonumber(TrainerLevels[name]) or 0
+                        local maxLevel = tonumber(configData.MaxLevel) or 100
+                        local tokenKey = configData.Material or (name .. "Token")
+
+                        -- ตรวจสอบ Materials ว่ามีตารางไหม ถ้าไม่มีให้เป็น 0
+                        local currentAmount = (PlayerData.Materials and PlayerData.Materials[tokenKey]) or 0
+
+                        -- เช็คสถานะการปลดล็อก (ถ้าอยากโชว์ 🔒 แต่ไม่ Lock ปุ่มให้กดไม่ได้)
+
+                        pcall(function()
+                            -- 1. จัดการ Title
+                            if currentLevel >= maxLevel then
+                                toggleUI:SetTitle(name .. " [MAX] ✅")
+                                if State.TrainerState[name] then
+                                    State.TrainerState[name] = false
+                                    toggleUI:Set(false)
+                                end
+                                toggleUI:Lock() -- ล็อกเฉพาะตัวที่ MAX
+                            else
+                                -- ไม่ Lock ปุ่ม แต่ใส่ไอคอน 🔒 ไว้หลังชื่อแทนเพื่อให้รู้ว่ายังไม่ปลดด่าน
+                                toggleUI:SetTitle(string.format("%s [%d/%d]", name, currentLevel, maxLevel))
+                                toggleUI:Unlock()
+                            end
+
+                            -- 2. จัดการ Description (คำนวณแม้จะยังไม่ปลดล็อก)
+                            local detailText = ""
+                            if currentLevel < maxLevel then
+                                -- เรียกฟังก์ชันคำนวณจาก Config (ส่ง 0 ไปถ้ายังไม่เริ่มอัป)
+                                local cost = 0
+                                local chance = 0
+
+                                if configData.GetCost then
+                                    cost = configData.GetCost(currentLevel)
+                                end
+
+                                if configData.GetChance then
+                                    chance = configData.GetChance(currentLevel)
+                                end
+
+                                detailText = string.format("\nCost: %d | Chance: %.1f%%", cost, chance)
+                            else
+                                detailText = "\n✨ Max Upgraded!"
+                            end
+
+                            -- แสดงผล Description เสมอ
+                            toggleUI:SetDesc(string.format("%s: %s%s", configData.Display or name, FormatNumber(currentAmount), detailText))
                         end)
                     end
                 end
             end
-            task.wait(1)
         end
+        -- 3. เพิ่มเวลาการรอ (Wait) เป็น 1.5 หรือ 2 วินาที เพื่อลดภาระเครื่อง
+        task.wait(1.5)
     end
 end)
 ----------------------------------------------------------------
--- Loop auto gacha roll (เช็คจำนวนขั้นต่ำ 10 ชิ้น)
+--- Loop auto upgrade trainer
 ----------------------------------------------------------------
 task.spawn(function()
 	while true do
@@ -1265,34 +1598,124 @@ task.spawn(function()
 			break
 		end
 
-        -- ดึงข้อมูล PlayerData ล่าสุดจาก Environment
+        -- ดึงข้อมูล PlayerData ล่าสุดจากถังข้อมูลกลาง
 		local PlayerData = GetPlayerData()
-		for name, enabled in pairs(State.GachaState) do
-            local configData = RollConfigCache[name]
-			if enabled then
-                -- 1. ค้นหาชื่อ Token และจำนวนที่มีปัจจุบัน
-				local tokenKey = configData.Material or (name .. "Token")
-				local currentAmount = (PlayerData and PlayerData.Materials and PlayerData.Materials[tokenKey]) or 0
+		if PlayerData then
+            for name, enabled in pairs(State.GachaState) do
+                local configData = RollConfigCache[name]
+		    	if enabled then
+                    -- 1. ค้นหาชื่อ Token และจำนวนที่มีปัจจุบัน
+		    		local tokenKey = configData.Material or (name .. "Token")
+		    		local currentAmount = (PlayerData and PlayerData.Materials and PlayerData.Materials[tokenKey]) or 0
 
-                -- 2. เงื่อนไข: ถ้าของมีตั้งแต่ 10 ชิ้นขึ้นไป ถึงจะส่ง Remote
-				if currentAmount >= 10 then
-					local args = {
-						[1] = "Crate Roll Start",
-						[2] = {
-							[1] = name,
-							[2] = false,
-						}
-					}
-					Reliable:FireServer(unpack(args))
-					task.wait(0.3) -- ดีเลย์ระหว่างการส่งแต่ละครั้ง
-				else
-                    -- ถ้าไม่ถึง 10 จะข้ามไปเช็คตัวถัดไปทันที (ตามที่คุณต้องการ)
-                    -- print("Skipping " .. name .. ": Not enough materials (" .. currentAmount .. "/10)")
+                    -- 2. เงื่อนไข: ถ้าของมีตั้งแต่ 10 ชิ้นขึ้นไป ถึงจะส่ง Remote
+		    		if currentAmount >= 10 then
+		    			local args = {
+		    				[1] = "Crate Roll Start",
+		    				[2] = {
+		    					[1] = name,
+		    					[2] = false,
+		    				}
+		    			}
+		    			Reliable:FireServer(unpack(args))
+		    			task.wait(0.5) -- ดีเลย์ระหว่างการส่งแต่ละครั้ง
+		    		end
+		    	end
+		    end
+
+            for name, enabled in pairs(State.RollUpgradeState) do
+                if enabled then
+                    local configData = RollUpgradeConfigCache[name]
+                    if configData then
+                        -- 1. ดึงเลเวลปัจจุบัน (Value) จาก GachaLevel โดยหาจาก Key ที่สูงที่สุด
+                        local gachaData = PlayerData.GachaLevel and PlayerData.GachaLevel[name]
+                        local currentLevel = 0
+
+                        if type(gachaData) == "table" then
+                            local highestGachaCount = -1
+                            for gachaCount, gachaLevel in pairs(gachaData) do
+                                local countNum = tonumber(gachaCount)
+                                if countNum and countNum > highestGachaCount then
+                                    highestGachaCount = countNum
+                                    currentLevel = tonumber(gachaLevel) or 0 -- ใช้ค่า Value เป็นเลเวล
+                                end
+                            end
+                        elseif type(gachaData) == "number" then
+                            currentLevel = gachaData
+                        end
+                    
+                        local maxLevel = tonumber(configData.MaxLevel) or 100
+
+                        -- 2. ตรวจสอบว่าเลเวลยังไม่เต็ม
+                        if currentLevel < maxLevel then
+                            -- 3. คำนวณราคา (Cost)
+                            local cost = configData.GetCost and configData.GetCost(currentLevel) or 1
+
+                            -- 4. ตรวจสอบจำนวน Material (Token)
+                            local tokenKey = configData.Material or (name .. "Token")
+                            local currentAmount = (PlayerData.Materials and PlayerData.Materials[tokenKey]) or 0
+                        
+                            -- 5. เงื่อนไข: ถ้า Token พอ ให้ส่งคำสั่งอัปเกรด
+                            if currentAmount >= cost then
+                                -- ⚠️ หมายเหตุ: ตรวจสอบชื่อ Remote ให้ตรงกับระบบ Gacha Upgrade ของคุณ
+                                -- ปกติจะเป็น "Gacha Upgrade" หรือ "Roll Upgrade" ไม่ใช่ "Crate Upgrade"
+                                local args = {
+                                    [1] = "Crate Upgrade", -- เปลี่ยนให้ตรงกับ Remote ของระบบสุ่ม
+                                    [2] = {
+                                        [1] = name, 
+                                    }
+                                }
+                                Reliable:FireServer(unpack(args))
+                            
+                                -- รอการตอบสนองจากเซิร์ฟเวอร์
+                                task.wait(0.5)
+                            end
+                        end
+                    end
+                end
+            end
+
+			for name, enabled in pairs(State.TrainerState) do
+				if enabled then
+                    -- 1. ดึงเลเวลปัจจุบันจาก CrateUpgrades
+                    local configData = TrainerConfigCache[name]
+					local currentLevel = (PlayerData.CrateUpgrades and PlayerData.CrateUpgrades[name]) or 0
+					local maxLevel = tonumber(configData.MaxLevel) or 100
+					if currentLevel < maxLevel then
+                        -- 2. คำนวณราคาที่ต้องใช้ตามสูตร (Level ^ 1) + 9
+						local cost = configData.GetCost and configData.GetCost(currentLevel) or (math.ceil(currentLevel ^ 0.7) * 1 + 5)
+
+                        -- 3. ตรวจสอบจำนวน Material ที่มี
+						local tokenKey = configData.Material or (name .. "Token")
+				        local currentAmount = (PlayerData and PlayerData.Materials and PlayerData.Materials[tokenKey]) or 0
+
+                        -- 4. เงื่อนไข: ถ้าของมีพอให้ทำการอัปเกรด
+						if currentAmount >= cost then
+							local args = {
+								[1] = "Chance Upgrade",
+								[2] = {
+									[1] = name, -- เช่น "Sung", "Wise"
+								}
+							}
+							Reliable:FireServer(unpack(args))
+
+                            -- รอให้เซิร์ฟเวอร์อัปเดตข้อมูลสักครู่ก่อนรอบถัดไป
+							task.wait(0.5)
+						else
+                            -- ถ้าของไม่พอ จะข้ามไปเช็คตัวอื่นที่เปิด Auto ไว้ทันที
+						end
+					end
 				end
 			end
 		end
-		task.wait(1)
+		task.wait(0.5) -- หน่วงเวลาภาพรวมของ Loop
 	end
 end)
-
+------------------------------------------------------------------------------------
+---
+------------------------------------------------------------------------------------
 Window:SelectTab(1);
+
+Window:OnClose(function()
+   
+end)
