@@ -109,6 +109,7 @@ local hrp
 local State = {
 	AutoFarm = false,
 	AutoDungeon = false,
+    AutoUseKey = false,
 	AutoFuse = false,
 	AutoRankUp = false,
     SelectedStat = nil,
@@ -172,6 +173,7 @@ local Window = UI:CreateWindow({
 Window:OnDestroy(function()
 	State.AutoFarm = false;
 	State.AutoDungeon = false;
+    State.AutoUseKey = false;
 	State.AutoFuse = false;
 	State.AutoRankUp = false;
     State.SelectedStat = nil;
@@ -517,6 +519,17 @@ local function LogicGamemodes()
                 if joinTarget and not State.GamemodeSession.Active and not inGamemodeZone then
                     JoinGamemode(joinTarget)
                 end
+
+                if State.AutoUseKey and joinTarget and not State.GamemodeSession.Active and not inGamemodeZone then
+                    local args = {
+                    	"Open Gamemode",
+                    	{
+                    		joinTarget
+                    	}
+                    }
+                    Reliable:FireServer(unpack(args))
+                    task.wait(5)
+                end
             end
         end
 
@@ -628,6 +641,7 @@ local FarmTab = MainSection:Tab({
 
 EnemyDropdown = FarmTab:Dropdown({
 	Title = "Select Enemy",
+    Desc = "Select the enemy you want to attack",
 	Values = RefreshEnemyData(),
 	Multi = false,
 	AllowNone = true,
@@ -638,6 +652,7 @@ EnemyDropdown = FarmTab:Dropdown({
 
 FarmTab:Button({
 	Title = "Refresh List",
+    Desc = "Refresh the list of available targets",
 	Icon = "refresh-cw",
 	Callback = function()
 		EnemyDropdown:Refresh(RefreshEnemyData());
@@ -646,6 +661,7 @@ FarmTab:Button({
 
 FarmTab:Toggle({
 	Title = "Auto Farm",
+    Desc = "Enable auto combat and monster farming",
 	Callback = function(val)
 		State.AutoFarm = val;
 		if val then
@@ -666,6 +682,7 @@ local GamemodeTap = MainSection:Tab({
 
 GamemodeTap:Dropdown({
 	Title = "Select Gamemode",
+    Desc = "Select specific gamemodes for the auto-join system",
 	Values = GetAllGamemodesUnified(),
 	Multi = true,
 	AllowNone = true,
@@ -680,12 +697,22 @@ GamemodeTap:Dropdown({
 
 GamemodeTap:Toggle({
 	Title = "Auto Join & Kill",
+    Desc = "Automatically join gamemodes and kill all enemies",
 	Flag = "AutoDungeon_Cfg",
 	Callback = function(val)
 		State.AutoDungeon = val;
 		if val then
 			task.spawn(LogicGamemodes);
 		end;
+	end
+});
+
+GamemodeTap:Toggle({
+	Title = "Auto Use Key",
+    Desc = "Automatically use keys to create gamemodes",
+	Flag = "AutoDungeon_Cfg",
+	Callback = function(val)
+		State.AutoUseKey = val;
 	end
 });
 ------------------------------------------------------------------------------------
@@ -700,7 +727,7 @@ local EquipTap = MainSection:Tab({
 
 EquipTap:Dropdown({
 	Title = "Auto Equip Best (Farm)",
-    Desc = "Auto Equip Best When outside Gamemode",
+    Desc = "Automatically Equip Best When outside Gamemode",
 	Values = {
         "--",
 		"Mastery",
@@ -721,7 +748,7 @@ EquipTap:Dropdown({
 
 EquipTap:Dropdown({
 	Title = "Auto Equip Best (Gamemode)",
-    Desc = "Auto Equip Best When inside Gamemode",
+    Desc = "Automatically Equip Best When inside Gamemode",
 	Values = {
         "--",
 		"Mastery",
