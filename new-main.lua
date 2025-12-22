@@ -42,12 +42,16 @@ local Unreliable = (ReplicatedStorage:WaitForChild("Reply")):WaitForChild("Unrel
 --- Module
 ------------------------------------------------------------------------------------
 local ConfigsPath = ReplicatedStorage.Scripts.Configs;
+local AttackAreaModule = require(ConfigsPath.BasicUpgrades.AttackArea);
 local YenModule = require(ConfigsPath.Machines.YenUpgrades);
 local TokenModule = require(ConfigsPath.Machines.TokenUpgrades);
 local RankModule = require(ConfigsPath.Machines.RankUp);
 local UtilsModule = require(ConfigsPath.Utility.Utils);
 local MaterialsModule = require(ConfigsPath.General.Materials);
 local GamemodeModule = require(ConfigsPath.Gamemodes);
+local ZoneModule = require(ConfigsPath.Zones);
+local RollGachaModule = ConfigsPath.RollGachas;
+local RollGachaUpgradeModule = ConfigsPath.RollGachaUpgrades;
 
 local ChanceModules = {};
 local ChancePath = ReplicatedStorage.Scripts.Configs:FindFirstChild("ChanceUpgrades");
@@ -64,6 +68,7 @@ end
 ------------------------------------------------------------------------------------
 --- Game Script
 ------------------------------------------------------------------------------------
+local AttackAreaUpgradeConfig = AttackAreaModule;
 local YenUpgradeConfig = YenModule.Config;
 local TokenUpgradeConfig = TokenModule.Config;
 local MaxRankCap = RankModule.MAX or 33;
@@ -107,36 +112,15 @@ local State = {
     SelectedStat = nil,
     YenUpgradeState = {},
     TokenUpgradeState = {},
-	AutoYen_Luck = false,
-	AutoYen_Damage = false,
-	AutoYen_Yen = false,
-	AutoYen_Mastery = false,
-	AutoYen_Critical = false,
-	AutoRollBiju = false,
-	AutoRollRace = false,
-	AutoRollSayajin = false,
-	AutoRollFruits = false,
-	AutoRollHaki = false,
-	AutoRollBreathing = false,
-	AutoRollOrganization = false,
-	AutoRollTitan = false,
-    AutoRollMagicEyes = false,
-    AutoRollDemonArt = false,
-    AutoUpgradeMagicEyes = false,
-	AutoChance_Breath = false,
-	AutoChance_Pirate = false,
-	AutoChance_Wise = false,
-	AutoChance_Leve = false,
+    AutoAttackAreaUpgrade = false,
 	SelectedEnemy = nil,
-	ZoneConfigurations = {},
 	TargetDungeon = {},
-	TargetRaid = {},
-	TargetDefense = {},
     GamemodeSession = {
         Active = false,
         Mode = nil,
         StartTime = 0,
     },
+    GachaState = {},
 };
 
 LocalPlayer.CharacterAdded:Connect(function(char)
@@ -186,17 +170,11 @@ Window:OnDestroy(function()
     State.SelectedStat = nil;
     State.YenUpgradeState = {};
     State.TokenUpgradeState = {};
-	State.AutoRollBiju = false;
-	State.AutoRollRace = false;
-	State.AutoRollSayajin = false;
-	State.AutoYen_Luck = false;
-	State.AutoYen_Damage = false;
-	State.AutoYen_Yen = false;
-	State.AutoYen_Mastery = false;
-	State.AutoYen_Critical = false;
-    State.GamemodeSession.Active = false
-    State.GamemodeSession.Mode = nil
-    State.GamemodeSession.StartTime = 0
+    State.AutoAttackAreaUpgrade = false;
+    State.GamemodeSession.Active = false;
+    State.GamemodeSession.Mode = nil;
+    State.GamemodeSession.StartTime = 0;
+    State.GachaState = {};
 	if CurrentZoneName ~= "" and State.SelectedEnemy then
 		-- SaveZoneConfig(CurrentZoneName, State.SelectedEnemy);
 	end;
@@ -561,7 +539,7 @@ end
 ------------------------------------------------------------------------------------
 local MainSection = Window:Section({
 	Title = "Main Features",
-	Icon = "folder",
+	-- Icon = "folder",
 	Opened = true,
 });
 ------------------------------------------------------------------------------------
@@ -642,8 +620,8 @@ GamemodeTap:Toggle({
 ------------------------------------------------------------------------------------
 local CharacterSection = Window:Section({
 	Title = "Character",
-	Icon = "user",
-	Opened = true,
+	-- Icon = "user",
+	Opened = false,
 });
 ------------------------------------------------------------------------------------
 --- CharacterSection Tab 1
@@ -680,7 +658,7 @@ local StatsTab = CharacterSection:Tab({
 });
 
 local StatsProgressUI = StatsTab:Paragraph({
-	Title = "Stats Progress",
+	Title = "Stats Overview",
 	Desc = "Loading data...",
 	Image = "coins",
 	ImageSize = 32
@@ -701,6 +679,29 @@ local StatsDropdownUI = StatsTab:Dropdown({
 		else
 			State.SelectedStat = v
 		end
+	end
+})
+------------------------------------------------------------------------------------
+--- CharacterSection Tab 2.5
+------------------------------------------------------------------------------------
+local AttackAreaTab = CharacterSection:Tab({
+	Title = "Attack Area",
+	Icon = "land-plot",
+    IconColor = Success,
+	IconShape = "Square",
+});
+
+local AttackAreaProgressUI = AttackAreaTab:Paragraph({
+	Title = "Attack Area",
+	Desc = "Loading data...",
+	Image = "geist:codepen",
+	ImageSize = 32
+})
+local AttackAreaToggle = AttackAreaTab:Toggle({
+	Title = "Auto Upgrade",
+	Value = false,
+	Callback = function(v)
+		State.AutoAttackAreaUpgrade = v
 	end
 })
 ------------------------------------------------------------------------------------
@@ -762,7 +763,7 @@ local TokenUpgradeNames = {
 local TokenCurrentGroup = nil
 
 local TokenProgressUI = TokenUpgradeTab:Paragraph({
-	Title = "Yen Progress",
+	Title = "Token Progress",
 	Desc = "Loading data...",
 	Image = "geist:chevron-double-up",
 	ImageSize = 32
@@ -801,6 +802,7 @@ task.spawn(function()
 				local nextBuff = GetRankBuff(currentRank + 1) or 0
 				pcall(function()
                     -- คำนวณเปอร์เซ็นต์ (Mastery / Requirement)
+
 					local percent = math.clamp(currentMastery / req, 0, 1)
 					local barText = string.rep("█", math.floor(percent * 10)) .. string.rep("▒", 10 - math.floor(percent * 10))
 
@@ -809,11 +811,11 @@ task.spawn(function()
 					if currentRank >= MaxRankCap then
 						buffText = string.format("Buff: %s%% (MAX)", FormatNumber(currentBuff))
 					else
-						buffText = string.format("Buff: %s%% ➔ %s%%", FormatNumber(currentBuff), FormatNumber(nextBuff))
+						buffText = string.format("Buff: %s%% -> %s%%", FormatNumber(currentBuff), FormatNumber(nextBuff))
 					end
 
                     -- อัปเดต UI ให้สวยเหมือน anui
-					RankProgressUI:SetTitle(string.format("Rank %d", currentRank))
+					RankProgressUI:SetTitle(string.format("Rank [%d/%s]", currentRank, MaxRankCap))
 					RankProgressUI:SetDesc(string.format("%s\n[%s] %d%%\n%s / %s", buffText, barText, math.floor(percent * 100), FormatNumber(currentMastery), FormatNumber(req)))
 				end)
 
@@ -851,11 +853,34 @@ task.spawn(function()
 
                 -- 4. อัปเดตลงใน UI
 				pcall(function()
-					StatsProgressUI:SetTitle("📊 Character Stats Overview")
+					-- StatsProgressUI:SetTitle("📊 Character Stats Overview")
 					StatsProgressUI:SetDesc(descText)
                     StatsDropdownUI:SetDesc(descToggleText)
 				end)
 			end
+            if PlayerData.AttackArea then
+                local AttackAreaUpgrades = PlayerData.AttackArea or {}
+
+                local currentLevel = AttackAreaUpgrades or 0
+                local maxLevel = AttackAreaUpgradeConfig.MAX or 9
+
+                local currentToken = PlayerData.Materials and PlayerData.Materials.AttackAreaToken or 0
+                pcall(function()
+                    if currentLevel >= maxLevel then
+							AttackAreaProgressUI:SetTitle("Attack Area" .. " [MAX] ✅")
+							AttackAreaProgressUI:SetDesc(string.format("Attack Area Token: %s\nSize: +%s%%", FormatNumber(currentToken), AttackAreaUpgradeConfig.GetAreaSize(AttackAreaUpgradeConfig, currentLevel)))
+                            AttackAreaToggle:Lock()
+						else
+							AttackAreaProgressUI:SetTitle("Attack Area" .. " [" .. currentLevel .. "/" .. maxLevel .. "]")
+							AttackAreaProgressUI:SetDesc(string.format("Attack Area Token: %s\nCost: %s | Size: +%s%%", FormatNumber(currentToken), FormatNumber(AttackAreaUpgradeConfig.GetEvolveCost(AttackAreaUpgradeConfig,currentLevel)), AttackAreaUpgradeConfig.GetAreaSize(AttackAreaUpgradeConfig, currentLevel)))
+							AttackAreaProgressUI:Unlock()
+							AttackAreaToggle:Unlock()
+						end
+                    -- AttackAreaProgressUI:SetDesc(string.format("Attack Area Token\nAmount: %s", FormatNumber(currentToken)))
+                end)
+
+            end
+
 			if PlayerData.YenUpgrades then
 				local YenUpgrades = PlayerData.YenUpgrades or {}
 
@@ -954,22 +979,19 @@ end
 task.spawn(function()
     while true do
         if Window.Destroyed then break end
-        
-        -- ทำงานเฉพาะเมื่อเปิดใช้งาน Auto ใดๆ อยู่ (ลดการทำงาน CPU)
-        local isAnyAutoEnabled = State.AutoRankUp or State.SelectedStat 
-            or next(State.YenUpgradeState) or next(State.TokenUpgradeState)
 
+        -- ทำงานเฉพาะเมื่อเปิดใช้งาน Auto ใดๆ อยู่ (ลดการทำงาน CPU)
+        local isAnyAutoEnabled = State.AutoRankUp or State.SelectedStat or next(State.YenUpgradeState) or next(State.TokenUpgradeState)
         if isAnyAutoEnabled then
             -- ใช้ PlayerData ที่เราสแกนเจอจาก Loop UI (แชร์ข้อมูลกัน)
             local PlayerData = GetPlayerData()
-            
             if PlayerData and PlayerData.Attributes then
                 -- --- [ 1. Auto Rank Up ] ---
                 if State.AutoRankUp then
                     local currentRank = PlayerData.Attributes.Rank or 0
                     local currentMastery = PlayerData.Attributes.Mastery or 0
                     local req = GetRankRequirement(currentRank)
-                    
+
                     -- เช็คว่า Rank ไม่ตัน และ Mastery ถึงเกณฑ์
                     if currentRank < MaxRankCap and currentMastery >= (req or 0) then
                         Reliable:FireServer("RankUp", {})
@@ -992,7 +1014,7 @@ task.spawn(function()
                         end
 
                         local pointsAvailable = totalPoints - spentPoints
-                    
+
                         -- 2. ส่งคำสั่งอัปเกรดเมื่อมีแต้มเหลือ
                         if pointsAvailable > 0 then
                             -- ดึงจำนวนที่ต้องการอัปจาก StatPointAmount (ที่เราสแกนเจอว่าเป็น 19)
@@ -1000,7 +1022,7 @@ task.spawn(function()
 
                             -- ตรวจสอบไม่ให้อัปเกินแต้มที่มีอยู่จริง
                             local finalAmount = math.min(amountToUpgrade, pointsAvailable)
-                        
+
                             Reliable:FireServer("Distribute Stat Point", {
                                 State.SelectedStat,
                                 finalAmount -- อัปตามจำนวนที่กำหนด หรือเท่าที่แต้มเหลือ
@@ -1008,6 +1030,20 @@ task.spawn(function()
                             task.wait(0.2) -- หน่วงเวลาเล็กน้อยเพื่อป้องกันการส่งซ้ำซ้อน
                         end
                     end)
+                end
+
+                if State.AutoAttackAreaUpgrade then
+                    local AttackAreaUpgrades = PlayerData.AttackArea or {}
+                    local currentLevel = AttackAreaUpgrades or 0
+                    local maxLevel = AttackAreaUpgradeConfig.MAX or 9
+
+                    local currentToken = PlayerData.Materials and PlayerData.Materials.AttackAreaToken or 0
+                    local cost = AttackAreaUpgradeConfig.GetEvolveCost(AttackAreaUpgradeConfig,currentLevel)
+
+                    if currentLevel < maxLevel and currentToken >= (cost or 0) then
+                        Reliable:FireServer("Evolve AttackArea")
+                        task.wait(0.2)
+                    end
                 end
 
                 -- --- [ 3. Auto Yen Upgrades ] ---
@@ -1021,6 +1057,7 @@ task.spawn(function()
                         -- เช็คว่าไม่ตันและเงินพอ
                         if currentLevel < maxLevel and currentYen >= (cost or 0) then
                             FireYenUpgrade(name)
+                            task.wait(0.2)
                         end
                     end
                 end
@@ -1036,6 +1073,7 @@ task.spawn(function()
                         -- เช็คว่าไม่ตันและ Token พอ
                         if currentLevel < maxLevel and currentToken >= (cost or 0) then
                             FireTokenUpgrade(name)
+                            task.wait(0.2)
                         end
                     end
                 end
@@ -1045,6 +1083,216 @@ task.spawn(function()
         task.wait(0.5) -- ปรับความเร็วลูปให้พอดี (2 ครั้งต่อวินาที) ไม่กินสเปคเครื่อง
     end
 end)
+------------------------------------------------------------------------------------
+--- GachaSection
+------------------------------------------------------------------------------------
+local GachaSection = Window:Section({
+	Title = "Gacha & Augments",
+	-- Icon = "dices",
+	Opened = false,
+});
+------------------------------------------------------------------------------------
+--- GachaSection Tab 1
+------------------------------------------------------------------------------------
+local GachaRoll = GachaSection:Tab({
+	Title = "Rolls",
+	Icon = "dices",
+	IconColor = Grey,
+	IconShape = "Square",
+})
+------------------------------------------------------------------------------------
+---
+------------------------------------------------------------------------------------
+local ConfigZones = ZoneModule
+local sortedList = {}
+------------------------------------------------------------------------------------
+--- 1. นำข้อมูลจาก Module มาใส่ตารางชั่วคราวเพื่อเตรียม Sort
+------------------------------------------------------------------------------------
+for zoneKey, zoneData in pairs(ConfigZones) do
+    table.insert(sortedList, {
+        Key = zoneKey,
+		DisplayName = zoneData.Name,
+        Order = zoneData.Order,
+        Objects = zoneData.Objects
+    })
+end
+------------------------------------------------------------------------------------
+--- 2. ทำการ Sort ตารางตามค่า Order (น้อยไปมาก)
+------------------------------------------------------------------------------------
+table.sort(sortedList, function(a, b)
+    return a.Order < b.Order
+end)
+------------------------------------------------------------------------------------
+--- 3. แปลงข้อมูลให้อยู่ในรูปแบบ zones = { { ["Name"] = { screens } } }
+------------------------------------------------------------------------------------
+local zones = {}
+for _, data in ipairs(sortedList) do
+    local screens = {}
+    if data.Objects then
+        for _, obj in ipairs(data.Objects) do
+            if obj.Screen then
+                table.insert(screens, obj.Screen)
+            end
+        end
+    end
 
+    table.insert(zones, {
+        [data.DisplayName] = screens
+    })
+end
+------------------------------------------------------------------------------------
+---
+------------------------------------------------------------------------------------
+local function GetGachaConfig(name)
+    -- หาไฟล์ใน RollGachas ก่อน
+    local file = RollGachaModule:FindFirstChild(name)
+    if not file then
+        -- ถ้าไม่เจอ หาใน RollGachaUpgrades
+        file = RollGachaUpgradeModule:FindFirstChild(name)
+    end
+    if file and file:IsA("ModuleScript") then
+        return require(file)
+    end
+    return nil
+end
+------------------------------------------------------------------------------------
+---
+------------------------------------------------------------------------------------
+local RollToggleUI = {}
+local RollConfigCache = {}
+for _, zoneInfo in ipairs(zones) do
+    for zoneName, screenList in pairs(zoneInfo) do
+        -- 1. ตารางเก็บ Screen ที่พบในโฟลเดอร์ที่กำหนด
+        local validGachasInZone = {}
+
+        for _, screenName in ipairs(screenList) do
+            local config = GetGachaConfig(screenName)
+            if config then
+                table.insert(validGachasInZone, screenName)
+                -- เก็บข้อมูลที่ดึงมาจาก Config ลง Cache
+                local maxLvl = 7
+                if config.List and type(config.List) == "table" then
+                    maxLvl = #config.List -- นับจำนวนสมาชิกในตาราง List
+                end
+
+                RollConfigCache[screenName] = {
+                    Material = config.Material,
+                    Display = config.Display,
+                    MaxLevel = tostring(maxLvl) -- ✨ เก็บเป็น String เพื่อไปเช็คกับ PlayerData.Vault
+                }
+            end
+        end
+
+        -- 2. สร้าง UI เฉพาะโซนที่มีรายการ Gacha หรือ Upgrade เท่านั้น
+        if #validGachasInZone > 0 then
+            GachaRoll:Section({
+                Title = zoneName,
+                TextSize = 14
+            })
+
+            local currentGroup = nil
+            for i, gachaName in ipairs(validGachasInZone) do
+                -- จัดกลุ่ม Toggle ทีละ 2 ปุ่ม
+                if i % 2 == 1 then
+                    currentGroup = GachaRoll:Group({})
+                end
+
+                -- สร้าง State และ Toggle สำหรับรายการนั้นๆ
+                State.GachaState[gachaName] = false
+
+                RollToggleUI[gachaName] = currentGroup:Toggle({
+                    Title = gachaName,
+                    Value = false,
+                    Callback = function(v)
+                        State.GachaState[gachaName] = v
+                    end
+                })
+            end
+        end
+    end
+end
+----------------------------------------------------------------
+-- Loop
+----------------------------------------------------------------
+task.spawn(function()
+    while true do
+        if Window.Destroyed then break end
+        if not Window.Closed then
+            local PlayerData = GetPlayerData()
+            if PlayerData and PlayerData.Materials then
+                for name, toggleUI in pairs(RollToggleUI) do
+                    -- ดึงค่าจาก Cache ที่เราดึงมาจาก Module ตรงๆ
+                    local configData = RollConfigCache[name]
+                    if configData then
+                        local tokenKey = configData.Material or (name .. "Token")
+                        local materialDisplayName = configData.Display or name
+                        local currentAmount = PlayerData.Materials[tokenKey] or 0
+                        local formattedAmount = FormatNumber(currentAmount)
+
+                        local targetMaxLevel = configData.MaxLevel
+                        local isMaxed = PlayerData.Vault and PlayerData.Vault[name] and PlayerData.Vault[name][targetMaxLevel] == true
+                        pcall(function()
+                            if isMaxed then
+                                -- ถ้าเต็มแล้ว ให้ล็อกปุ่มและแสดงสถานะ MAX
+                                toggleUI:SetTitle(name .. " [MAX] ✅")
+                                if State.GachaState[name] then
+                                    State.GachaState[name] = false
+                                    toggleUI:Set(false)
+                                end
+                                toggleUI:Lock()
+                            else
+                                -- ถ้ายังไม่เต็ม ให้ปลดล็อกปุ่มให้กดได้ปกติ (ไม่สนใจว่าปลดล็อกด่านหรือยัง)
+                                toggleUI:SetTitle(name)
+                                toggleUI:Unlock()
+                            end
+
+                            -- อัปเดตจำนวน Token ที่มี
+                            toggleUI:SetDesc(materialDisplayName .. " Token: " .. formattedAmount)
+                        end)
+                    end
+                end
+            end
+            task.wait(1)
+        end
+    end
+end)
+----------------------------------------------------------------
+-- Loop auto gacha roll (เช็คจำนวนขั้นต่ำ 10 ชิ้น)
+----------------------------------------------------------------
+task.spawn(function()
+	while true do
+		if Window.Destroyed then
+			break
+		end
+
+        -- ดึงข้อมูล PlayerData ล่าสุดจาก Environment
+		local PlayerData = GetPlayerData()
+		for name, enabled in pairs(State.GachaState) do
+            local configData = RollConfigCache[name]
+			if enabled then
+                -- 1. ค้นหาชื่อ Token และจำนวนที่มีปัจจุบัน
+				local tokenKey = configData.Material or (name .. "Token")
+				local currentAmount = (PlayerData and PlayerData.Materials and PlayerData.Materials[tokenKey]) or 0
+
+                -- 2. เงื่อนไข: ถ้าของมีตั้งแต่ 10 ชิ้นขึ้นไป ถึงจะส่ง Remote
+				if currentAmount >= 10 then
+					local args = {
+						[1] = "Crate Roll Start",
+						[2] = {
+							[1] = name,
+							[2] = false,
+						}
+					}
+					Reliable:FireServer(unpack(args))
+					task.wait(0.3) -- ดีเลย์ระหว่างการส่งแต่ละครั้ง
+				else
+                    -- ถ้าไม่ถึง 10 จะข้ามไปเช็คตัวถัดไปทันที (ตามที่คุณต้องการ)
+                    -- print("Skipping " .. name .. ": Not enough materials (" .. currentAmount .. "/10)")
+				end
+			end
+		end
+		task.wait(1)
+	end
+end)
 
 Window:SelectTab(1);
