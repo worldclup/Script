@@ -117,6 +117,8 @@ local State = {
     TokenUpgradeState = {},
     AutoAttackAreaUpgrade = false,
 	SelectedEnemy = nil,
+    SelectedEquipBestFarm = nil,
+    SelectedEquipBestGamemode = nil,
 	TargetDungeon = {},
     GamemodeSession = {
         Active = false,
@@ -183,10 +185,37 @@ Window:OnDestroy(function()
     State.GachaState = {};
     State.RollUpgradeState = {};
     State.TrainerState = {};
+    State.SelectedEquipBestFarm = nil;
+    State.SelectedEquipBestGamemode = nil;
 	if CurrentZoneName ~= "" and State.SelectedEnemy then
 		-- SaveZoneConfig(CurrentZoneName, State.SelectedEnemy);
 	end;
 end);
+----------------------------------------------------------------
+--- Apply Vault Equip Best
+----------------------------------------------------------------
+local IconNoti = {
+    ["Mastery"] = "chess-queen",
+    ["Damage"] = "flame",
+    ["Luck"] = "clover",
+    ["Yen"] = "badge-japanese-yen",
+}
+local function ApplyVaultEquipBest(typeName)
+	local args = {
+		[1] = "Vault Equip Best",
+		[2] = {
+			[1] = typeName, -- "Damage" หรือ "Mastery"
+		}
+	}
+	Reliable:FireServer(unpack(args))
+	UI:Notify({
+		Title = "Equip Best!",
+		Content = typeName,
+		Duration = 3, -- 3 seconds
+		Icon = IconNoti[typeName],
+	})
+		
+end
 ------------------------------------------------------------------------------------
 --- Refresh Enemy Data
 ------------------------------------------------------------------------------------
@@ -495,6 +524,9 @@ local function LogicGamemodes()
         -- FIGHT (อยู่ในดันจริง)
         --------------------------------------------------
         if inGamemodeZone then
+            if State.SelectedEquipBestGamemode and not State.GamemodeSession.Active then
+                ApplyVaultEquipBest(State.SelectedEquipBestGamemode)
+            end
             State.GamemodeSession.Active = true
             -- State.GamemodeSession.Mode = targetValue
             -- State.GamemodeSession.StartTime = os.clock()
@@ -523,12 +555,13 @@ local function LogicGamemodes()
         -- FINISH (ออกจาก GamemodeZone แล้ว)
         --------------------------------------------------
         elseif State.GamemodeSession.Active and not inGamemodeZone then
+            if State.SelectedEquipBestFarm then
+                ApplyVaultEquipBest(State.SelectedEquipBestFarm)
+            end
             State.GamemodeSession.Active = false
             State.GamemodeSession.Mode = nil
 
             GlobalEnemyMap = {}
-            CurrentZoneEnemiesCache = {}
-
             if LastZone then
                 task.wait(3)
                 pcall(function()
@@ -559,7 +592,6 @@ local FarmTab = MainSection:Tab({
     IconColor = Mythic,
 	IconShape = "Square",
 });
-
 
 EnemyDropdown = FarmTab:Dropdown({
 	Title = "Select Enemy",
@@ -623,6 +655,57 @@ GamemodeTap:Toggle({
 		end;
 	end
 });
+------------------------------------------------------------------------------------
+--- MainSection Tab 3
+------------------------------------------------------------------------------------
+local EquipTap = MainSection:Tab({
+	Title = "Equip Best",
+	Icon = "flame",
+    IconColor = Mythic,
+	IconShape = "Square",
+});
+
+EquipTap:Dropdown({
+	Title = "Auto Equip Best (Farm)",
+    Desc = "Auto Equip Best When outside Gamemode",
+	Values = {
+        "--",
+		"Mastery",
+		"Damage",
+		"Luck",
+		"Yen"
+    },
+	Multi = false,
+	AllowNone = true,
+	Callback = function(v)
+        if v == "--" then
+			State.SelectedEquipBestFarm = nil
+		else
+			State.SelectedEquipBestFarm = v
+		end
+	end
+})
+
+EquipTap:Dropdown({
+	Title = "Auto Equip Best (Gamemode)",
+    Desc = "Auto Equip Best When inside Gamemode",
+	Values = {
+        "--",
+		"Mastery",
+		"Damage",
+		"Luck",
+		"Yen"
+    },
+	Multi = false,
+	AllowNone = true,
+	Callback = function(v)
+        if v == "--" then
+			State.SelectedEquipBestGamemode = nil
+		else
+			State.SelectedEquipBestGamemode = v
+		end
+	end
+})
 ------------------------------------------------------------------------------------
 --- CharacterSection
 ------------------------------------------------------------------------------------
