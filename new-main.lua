@@ -629,7 +629,7 @@ GamemodeTap:Toggle({
 local CharacterSection = Window:Section({
 	Title = "Character",
 	-- Icon = "user",
-	Opened = false,
+	Opened = true,
 });
 ------------------------------------------------------------------------------------
 --- CharacterSection Tab 1
@@ -1115,7 +1115,7 @@ end)
 local GachaSection = Window:Section({
 	Title = "Gacha & Augments",
 	-- Icon = "dices",
-	Opened = false,
+	Opened = true,
 });
 ------------------------------------------------------------------------------------
 --- GachaSection Tab 1
@@ -1711,6 +1711,105 @@ task.spawn(function()
 		task.wait(0.5) -- หน่วงเวลาภาพรวมของ Loop
 	end
 end)
+----------------------------------------------------------------
+---
+----------------------------------------------------------------
+local SettingTab = Window:Tab({
+	Title = "Settings",
+	Icon = "settings-2",
+	IconColor = Grey,
+	IconShape = "Square",
+})
+----------------------------------------------------------------
+-- FPS BOOST
+----------------------------------------------------------------
+local function BoostFps()
+
+	_G.Ignore = {}
+	_G.Settings = {
+		Players = {
+			["Ignore Me"] = true,
+			["Ignore Others"] = true,
+			["Ignore Tools"] = true
+		},
+		Meshes = {
+			NoMesh = false,
+			NoTexture = false,
+			Destroy = false
+		},
+		Images = {
+			Invisible = true,
+			Destroy = false
+		},
+		Explosions = {
+			Smaller = true,
+			Invisible = false, -- Not for PVP games
+			Destroy = false -- Not for PVP games
+		},
+		Particles = {
+			Invisible = true,
+			Destroy = false
+		},
+		TextLabels = {
+			LowerQuality = true,
+			Invisible = false,
+			Destroy = false
+		},
+		MeshParts = {
+			LowerQuality = true,
+			Invisible = false,
+			NoTexture = false,
+			NoMesh = false,
+			Destroy = false
+		},
+		Other = {
+			["FPS Cap"] = 360, -- true to uncap
+			["No Camera Effects"] = true,
+			["No Clothes"] = true,
+			["Low Water Graphics"] = true,
+			["No Shadows"] = true,
+			["Low Rendering"] = true,
+			["Low Quality Parts"] = true,
+			["Low Quality Models"] = true,
+			["Reset Materials"] = true,
+		}
+	}
+	loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/components/boost-fps.lua"))()
+end
+----------------------------------------------------------------
+-- Button Boost FPS
+----------------------------------------------------------------
+SettingTab:Button({
+	Title = "Boost FPS (Low Graphics)",
+	Icon = "rocket",
+	Callback = function()
+		BoostFps()
+	end
+})
+----------------------------------------------------------------
+-- Auto Fuse Weapons
+----------------------------------------------------------------
+SettingTab:Toggle({
+	Title = "Auto Fuse Weapons",
+	Callback = function(v)
+		State.AutoFuse = v;
+		if v then
+			task.spawn(function()
+				while State.AutoFuse do
+					if Window.Destroyed then
+						break;
+					end;
+					if Reliable then
+						pcall(function()
+							Reliable:FireServer("Weapon Fuse All");
+						end);
+					end;
+					task.wait(5);
+				end;
+			end);
+		end;
+	end
+});
 ------------------------------------------------------------------------------------
 ---
 ------------------------------------------------------------------------------------
