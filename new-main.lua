@@ -691,7 +691,7 @@ local function LogicGamemodes()
                     local args = {
                     	"Open Gamemode",
                     	{
-                    		joinTarget
+                    		targetValue
                     	}
                     }
                     Reliable:FireServer(unpack(args))
