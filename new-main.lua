@@ -177,6 +177,7 @@ local Window = UI:CreateWindow({
 		OnlyMobile = false,
 		Enabled = true,
 		Draggable = true,
+        Position = UDim2.new(0, 8, 0, 80),
 	},
 })
 
