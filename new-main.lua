@@ -198,8 +198,8 @@ Window:OnDestroy(function()
     State.AutoLeave = false;
 	State.AutoFuse = false;
 	State.AutoRankUp = false;
-    State.SelectedStat = nil;
     State.AutoAscension = false;
+    State.SelectedStat = nil;
     State.YenUpgradeState = {};
     State.TokenUpgradeState = {};
     State.AutoAttackAreaUpgrade = false;
@@ -1100,7 +1100,7 @@ local AscensionToggle = StatsTab:Toggle({
 	Title = "Auto Ascension",
 	Value = false,
 	Callback = function(v)
-		State.AutoAttackAreaUpgrade = v
+		State.AutoAscension = v
 	end
 })
 ------------------------------------------------------------------------------------
@@ -1414,7 +1414,7 @@ task.spawn(function()
         if Window.Destroyed then break end
 
         -- ทำงานเฉพาะเมื่อเปิดใช้งาน Auto ใดๆ อยู่ (ลดการทำงาน CPU)
-        local isAnyAutoEnabled = State.AutoRankUp or State.SelectedStat or next(State.YenUpgradeState) or next(State.TokenUpgradeState)
+        local isAnyAutoEnabled = State.AutoRankUp or State.AutoAscension or State.SelectedStat or next(State.YenUpgradeState) or next(State.TokenUpgradeState)
         if isAnyAutoEnabled then
             -- ใช้ PlayerData ที่เราสแกนเจอจาก Loop UI (แชร์ข้อมูลกัน)
             local PlayerData = GetPlayerData()
@@ -1429,6 +1429,24 @@ task.spawn(function()
                     if currentRank < MaxRankCap and currentMastery >= (req or 0) then
                         Reliable:FireServer("RankUp", {})
                         task.wait(0.3) -- รอเล็กน้อยหลังอัปเกรด
+                    end
+                end
+
+                -- 1.5. NEW: Auto Ascension (แทรกตรงนี้)
+                if State.AutoAscension then
+                    -- 2. ดึงข้อมูลเลเวลและการเกิดใหม่
+                    local currentLevel = PlayerData.Attributes.Level or 1
+                    local asc = PlayerData.Attributes.Ascension or 0
+
+                    -- ✨ 3. คำนวณ Max Level ตาม Ascension ปัจจุบัน
+                    -- สูตรใน Module คือ: 200 + (10 * Ascension)
+                    local maxLevel = LevelUpModule.GetMaxLevel(asc) or 200
+
+                    if currentLevel >= maxLevel then
+                        pcall(function()
+                            Reliable:FireServer("Ascend")
+                        end)
+                        task.wait(0.5)
                     end
                 end
 
