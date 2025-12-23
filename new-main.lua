@@ -709,28 +709,6 @@ local function LogicGamemodes()
             if State.AutoLeave then
                 CheckAutoLeave()
             end
-            -- State.GamemodeSession.Mode = targetValue
-            -- State.GamemodeSession.StartTime = os.clock()
-
-            -- if os.time() - refreshTimer > 1 then
-            --     RefreshEnemyData()
-            --     refreshTimer = os.time()
-            -- end
-
-            -- for _, enemyList in pairs(GlobalEnemyMap) do
-            --     for _, enemyObj in ipairs(enemyList) do
-            --         if enemyObj.Alive and enemyObj.Data and enemyObj.Data.CFrame then
-            --             if hrp then
-            --                 hrp.CFrame = enemyObj.Data.CFrame * CFrame.new(0, 0, -5)
-            --             end
-            --             if enemyObj.Uid then
-            --                 pcall(function()
-            --                     Unreliable:FireServer("Hit", { enemyObj.Uid })
-            --                 end)
-            --             end
-            --         end
-            --     end
-            -- end
             local EnemiesFolder = Workspace:FindFirstChild("Enemies")
             if EnemiesFolder then
                 for _, enemy in ipairs(EnemiesFolder:GetChildren()) do
@@ -744,8 +722,31 @@ local function LogicGamemodes()
                         if not State.AutoDungeon or not IsInGamemodeZone() then break end
 
                         if enemy.PrimaryPart and hrp then
-                            -- Teleport ไปเกาะมอนสเตอร์
-                            hrp.CFrame = enemy.PrimaryPart.CFrame * CFrame.new(0, 0, -5)
+                            -- -- Teleport ไปเกาะมอนสเตอร์
+                            -- hrp.CFrame = enemy.PrimaryPart.CFrame * CFrame.new(0, 0, -5)
+                            -- 1. หาตำแหน่งของศัตรู (X, Z)
+                            local enemyPos = enemy.PrimaryPart.CFrame.Position
+
+                            -- 2. หาตำแหน่งพื้นของคุณ (Y) 
+                            -- ใช้ตำแหน่งปัจจุบันของตัวละครคุณเอง หรือถ้าอยากให้ชัวร์ว่าติดพื้นตลอด 
+                            -- สามารถใช้ตำแหน่งของขา หรือค่าคงที่ของพื้นแมพได้
+                            local myGroundY = hrp.Position.Y 
+
+                            -- 3. คำนวณจุดที่จะไปยืน (ห่างจากศัตรูออกมา -5 หน่วยในแนวราบ)
+                            -- เราจะสร้าง Vector ใหม่ที่เอาแค่ X, Z ของศัตรูมา แต่ Y เป็นของเรา
+                            local targetFlatPos = Vector3.new(enemyPos.X, myGroundY, enemyPos.Z)
+
+                            -- 4. สร้างตำแหน่งที่ยืน โดยถอยออกมานิดหน่อย (-5 คือระยะห่าง ปรับได้ตามระยะอาวุธ)
+                            -- ใช้ CFrame.lookAt เพื่อให้ตัวละคร "หันหน้า" ไปหาศัตรูเสมอแม้จะยืนอยู่ที่พื้น
+                            local standPos = targetFlatPos + (hrp.CFrame.LookVector * -1) -- หรือระบุตำแหน่งแน่นอน
+
+                            -- แบบง่ายที่สุด: วาร์ปไปที่ศัตรูในระดับพื้นดิน
+                            -- CFrame.new(enemyPos.X, myGroundY, enemyPos.Z) * CFrame.new(0, 0, 5) 
+                            -- 5 คือระยะห่างจากตัวมอนสเตอร์
+                            hrp.CFrame = CFrame.lookAt(
+                                Vector3.new(enemyPos.X, myGroundY, enemyPos.Z) + Vector3.new(0, 0, 5), 
+                                Vector3.new(enemyPos.X, myGroundY, enemyPos.Z)
+                            )
 
                             -- ส่งคำสั่งตี
                             if uid then
