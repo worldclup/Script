@@ -54,6 +54,7 @@ local RollGachaModule = ConfigsPath.RollGachas;
 local RollGachaUpgradeModule = ConfigsPath.RollGachaUpgrades;
 local TrainerModule = ConfigsPath.Trainers;
 local LevelUpModule = require(ConfigsPath.General.LevelUp)
+local CraftModule = require(ConfigsPath.Crafts)
 
 local ChanceModules = {};
 local ChancePath = ReplicatedStorage.Scripts.Configs:FindFirstChild("ChanceUpgrades");
@@ -135,6 +136,7 @@ local State = {
     GachaState = {},
     RollUpgradeState = {},
     TrainerState = {},
+    AutoCraft = {},
 };
 
 LocalPlayer.CharacterAdded:Connect(function(char)
@@ -209,6 +211,7 @@ Window:OnDestroy(function()
     State.GachaState = {};
     State.RollUpgradeState = {};
     State.TrainerState = {};
+    State.AutoCraft = {};
     State.SelectedEquipBestFarm = nil;
     State.SelectedEquipBestGamemode = nil;
 	if CurrentZoneName ~= "" and State.SelectedEnemy then
@@ -1766,7 +1769,7 @@ for _, zoneInfo in ipairs(zones) do
                 -- สร้าง State และ Toggle สำหรับรายการนั้นๆ
                 State.RollUpgradeState[gachaName] = false
 
-                RollUpgradeToggleUI[gachaName] = currentGroup:Toggle({
+                RollUpgradeToggleUI[gachaName] = RollUpgradeTap:Toggle({
                     Title = gachaName,
                     Value = false,
                     Callback = function(v)
@@ -1852,9 +1855,59 @@ for _, zoneInfo in ipairs(zones) do
         end
     end
 end
-----------------------------------------------------------------
---
-----------------------------------------------------------------
+------------------------------------------------------------------------------------
+---
+------------------------------------------------------------------------------------
+local CraftTab = GachaSection:Tab({
+	Title = "Crafts",
+	Icon = "blocks",
+	IconColor = Purple,
+	IconShape = "Square",
+})
+local CraftToggleUI = {}
+local CraftConfigCache = {}
+
+CraftTab:Section({
+    Title = "Equipment Crafting",
+    TextSize = 14
+})
+
+-- เรียง ID 1-5
+local keys = {}
+for k in pairs(CraftModule) do table.insert(keys, k) end
+table.sort(keys, function(a, b) return tonumber(a) < tonumber(b) end)
+
+local CraftCurrentGroup = nil
+for i, id in ipairs(keys) do
+    local data = CraftModule[id]
+    
+    -- จัดกลุ่ม Toggle ทีละ 2 ปุ่ม (เหมือน Trainer)
+    -- if i % 2 == 1 then
+    --     CraftCurrentGroup = CraftTab:Group({})
+    -- end
+
+    -- เก็บ Config ลง Cache เพื่อใช้ใน Loop Update
+    CraftConfigCache[id] = {
+        Display = data.Display,
+        MaxLevel = data.MaxLevel,
+        Costs = data.Costs,
+        Bonuses = data.Bonuses
+    }
+
+    State.AutoCraft[id] = false
+
+    -- สร้าง Toggle และเก็บอ้างอิงไว้ใน Table
+    CraftToggleUI[id] = CraftTab:Toggle({
+        Title = data.Display,
+        Value = false,
+        Callback = function(v)
+            State.AutoCraft[id] = v
+        end
+    })
+end
+------------------------------------------------------------------------------------
+---
+------------------------------------------------------------------------------------
 task.spawn(function()
     while true do
         -- 1. หยุดทำงานทันทีถ้าทำลาย Window ไปแล้ว
@@ -2008,6 +2061,65 @@ task.spawn(function()
                         end)
                     end
                 end
+
+                -- --- [ ส่วนของ Crafting UI Update ] ---
+                for id, toggleUI in pairs(CraftToggleUI) do
+                    local configData = CraftConfigCache[id]
+                    if configData then
+                        local currentLevel = (PlayerData.Crafts and PlayerData.Crafts[id]) or 0
+                        local maxLevel = configData.MaxLevel
+                        local nextLevel = currentLevel + 1
+                    
+                        pcall(function()
+                            if currentLevel >= maxLevel then
+                                toggleUI:SetTitle(configData.Display .. " [MAX] ✅")
+
+                                -- แสดง Buff สูงสุดที่ได้รับเมื่อเลเวลเต็ม
+                                local finalBonuses = configData.Bonuses[maxLevel]
+                                local buffText = "✨ MAX LEVEL BUFFS:"
+                                for stat, value in pairs(finalBonuses) do
+                                    buffText = buffText .. string.format("\n%s: +%s%%", stat, FormatNumber(value))
+                                end
+
+                                toggleUI:SetDesc(buffText)
+
+                                if State.AutoCraft[id] then
+                                    State.AutoCraft[id] = false
+                                    toggleUI:Set(false)
+                                end
+                                toggleUI:Lock()
+                            else
+                                toggleUI:SetTitle(string.format("%s [%d/%d]", configData.Display, currentLevel, maxLevel))
+                                toggleUI:Unlock()
+                            
+                                -- 1. ส่วนของ Buff (Current -> Next)
+                                local currentBonuses = configData.Bonuses[currentLevel] or {}
+                                local nextBonuses = configData.Bonuses[nextLevel] or {}
+                                local buffDesc = "Buffs Status:"
+
+                                -- วนลูปตาม Bonus ของเลเวลถัดไปเป็นหลัก
+                                for stat, nextVal in pairs(nextBonuses) do
+                                    local curVal = currentBonuses[stat] or 0
+                                    buffDesc = buffDesc .. string.format("\n%s: %s%% -> %s%%", stat, FormatNumber(curVal), FormatNumber(nextVal))
+                                end
+                            
+                                -- 2. ส่วนของ Requirements (วัตถุดิบ)
+                                local costData = configData.Costs[nextLevel]
+                                local costDesc = "\n\nUpgrade Requirements (Lv.".. nextLevel .."):"
+                            
+                                for matName, reqAmount in pairs(costData) do
+                                    local owned = (PlayerData.Materials and PlayerData.Materials[matName]) or 0
+                                    local isEnough = owned >= reqAmount
+                                    local colorIcon = isEnough and "✅" or "❌"
+                                    costDesc = costDesc .. string.format("\n%s %s: %s/%s", colorIcon, matName, FormatNumber(owned), FormatNumber(reqAmount))
+                                end
+
+                                -- รวมข้อความทั้งหมดเข้าด้วยกัน
+                                toggleUI:SetDesc(buffDesc .. costDesc)
+                            end
+                        end)
+                    end
+                end
             end
         end
         -- 3. เพิ่มเวลาการรอ (Wait) เป็น 1.5 หรือ 2 วินาที เพื่อลดภาระเครื่อง
@@ -2015,7 +2127,7 @@ task.spawn(function()
     end
 end)
 ----------------------------------------------------------------
---- Loop auto upgrade trainer
+--- Loop auto upgrade
 ----------------------------------------------------------------
 task.spawn(function()
 	while true do
@@ -2131,6 +2243,40 @@ task.spawn(function()
 					end
 				end
 			end
+
+            -- --- [ เพิ่มส่วนของ Auto Craft ] ---
+            for id, enabled in pairs(State.AutoCraft) do
+                if enabled then
+                    local configData = CraftConfigCache[id]
+                    local currentLevel = (PlayerData.Crafts and PlayerData.Crafts[id]) or 0
+                    local maxLevel = configData.MaxLevel
+                    
+                    if currentLevel < maxLevel then
+                        local nextLevel = currentLevel + 1
+                        local costData = configData.Costs[nextLevel]
+                        
+                        -- ตรวจสอบว่าวัตถุดิบครบหรือไม่
+                        local canCraft = true
+                        for matName, reqAmount in pairs(costData) do
+                            local owned = (PlayerData.Materials and PlayerData.Materials[matName]) or 0
+                            if owned < reqAmount then
+                                canCraft = false
+                                break
+                            end
+                        end
+
+                        -- ถ้าของครบ ให้ส่งคำสั่งคราฟต์
+                        if canCraft then
+                            pcall(function()
+                                -- ส่ง ID ในรูปแบบ Table ตามโครงสร้าง Remote ส่วนใหญ่
+                                Reliable:FireServer("Upgrade Craft", { id })
+                            end)
+                            -- รอให้เซิร์ฟเวอร์อัปเดตข้อมูล (Cooldown)
+                            task.wait(0.5)
+                        end
+                    end
+                end
+            end
 		end
 		task.wait(0.5) -- หน่วงเวลาภาพรวมของ Loop
 	end
