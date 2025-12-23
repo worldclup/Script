@@ -417,48 +417,76 @@ end;
 --- Logic Auto Farm
 ------------------------------------------------------------------------------------
 local function LogicAutoFarm()
-	local currentTargetObj = nil;
-	while State.AutoFarm do
-		if Window.Destroyed then
-			break
-		end;
-		if currentTargetObj then
-			if currentTargetObj.Alive == false or (not currentTargetObj.Data) or (not currentTargetObj.Uid) then
-				currentTargetObj = nil;
-			end;
-		end;
-		if not currentTargetObj and State.SelectedEnemy then
+    local currentTargetObj = nil;
+    local rayParams = RaycastParams.new()
+    rayParams.FilterType = Enum.RaycastFilterType.Exclude
 
-			local targetName = State.SelectedEnemy.Value;
-			if targetName and hrp and GlobalEnemyMap[targetName] then
-				local enemyList = GlobalEnemyMap[targetName] or {};
-				local closest, minDst = nil, math.huge;
-				local myPos = hrp.Position;
-				for _, enemyObj in ipairs(enemyList) do
-					if enemyObj.Alive == true and enemyObj.Data and enemyObj.Data.CFrame then
-						local dst = (myPos - enemyObj.Data.CFrame.Position).Magnitude;
-						if dst < minDst then
-							minDst = dst;
-							closest = enemyObj;
-						end;
-					end;
-				end;
-				if closest then
-					currentTargetObj = closest;
-					if hrp and currentTargetObj.Data and currentTargetObj.Data.CFrame then
-						hrp.CFrame = currentTargetObj.Data.CFrame * CFrame.new(0, 0, -5);
-					end;
-				end;
-			end;
-		elseif currentTargetObj.Uid and Unreliable then
-			pcall(function()
-				Unreliable:FireServer("Hit", {
-					currentTargetObj.Uid
-				});
-			end);
-		end;
-		task.wait(0.1);
-	end;
+    while State.AutoFarm do
+        if Window.Destroyed then break end;
+
+        local myChar = Workspace:FindFirstChild(LocalPlayer.Name)
+        local myHumanoid = myChar and myChar:FindFirstChild("Humanoid")
+        if myChar then
+            hrp = myChar:FindFirstChild("HumanoidRootPart")
+            rayParams.FilterDescendantsInstances = {myChar}
+            
+            -- บังคับให้ Humanoid อยู่ในสถานะยืนตลอดเวลา (กันลอย/กันเด้ง)
+            myHumanoid:ChangeState(Enum.HumanoidStateType.RunningNoPhysics)
+        end
+
+        -- [ส่วนการหาเป้าหมายคงเดิม...]
+        if currentTargetObj and (currentTargetObj.Alive == false or not currentTargetObj.Data) then
+            currentTargetObj = nil;
+        end
+
+        if not currentTargetObj and State.SelectedEnemy then
+            local targetName = State.SelectedEnemy.Value;
+            if targetName and hrp and GlobalEnemyMap[targetName] then
+                local closest, minDst = nil, math.huge;
+                for _, enemyObj in ipairs(GlobalEnemyMap[targetName] or {}) do
+                    if enemyObj.Alive == true and enemyObj.Data then
+                        local dst = (hrp.Position - enemyObj.Data.CFrame.Position).Magnitude;
+                        if dst < minDst then minDst = dst; closest = enemyObj; end
+                    end
+                end
+                currentTargetObj = closest;
+            end
+        end
+
+        -- --- ส่วนวาร์ปแบบดูดติดพื้น ---
+        if currentTargetObj and hrp and currentTargetObj.Data then
+            local enemyPos = currentTargetObj.Data.CFrame.Position
+            
+            -- ยิง Raycast จากตัวมอนสเตอร์ลงไปหาพื้น
+            local rayResult = Workspace:Raycast(enemyPos + Vector3.new(0, 5, 0), Vector3.new(0, -20, 0), rayParams)
+            
+            if rayResult then
+                -- หาค่า HipHeight ของตัวละครเรา (ปกติคือ 2)
+                local hipHeight = myHumanoid and myHumanoid.HipHeight or 2
+                
+                -- คำนวณความสูง: จุดที่ Ray ยิงโดนพื้น + HipHeight + ระยะชดเชยเล็กน้อย
+                -- ลองปรับจาก 2.8 เป็น 2.5 หรือ 2.0 ถ้ายังลอยอยู่ครับ
+                local finalY = rayResult.Position.Y + hipHeight + 1.2 
+
+                local targetPos = Vector3.new(enemyPos.X, finalY, enemyPos.Z)
+                -- ยืนห่างมอนสเตอร์ 5 หน่วย
+                local myNewPos = targetPos + (currentTargetObj.Data.CFrame.LookVector * 5)
+
+                -- วาร์ปแบบล็อคแกน Y
+                hrp.CFrame = CFrame.lookAt(myNewPos, Vector3.new(enemyPos.X, finalY, enemyPos.Z))
+            end
+            
+            -- หยุดแรงส่งสะสม (สำคัญมากกันตัวเด้งขึ้น)
+            hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+            hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+        end;
+
+        if currentTargetObj and currentTargetObj.Uid and Unreliable then
+            pcall(function() Unreliable:FireServer("Hit", {currentTargetObj.Uid}) end)
+        end;
+
+        task.wait(0.1);
+    end;
 end;
 ------------------------------------------------------------------------------------
 ---
