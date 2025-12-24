@@ -189,7 +189,7 @@ local Window = UI:CreateWindow({
 
 do
     Window:Tag({
-        Title = "v1.1.1",
+        Title = "v1.1.6",
         Icon = "github",
         Color = Color3.fromHex("#50C878")
     })
