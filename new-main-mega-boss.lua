@@ -706,12 +706,19 @@ local function LogicGamemodes()
                     State.GamemodeSession.Mode = targetValue
                 end
 
-                if State.AutoUseKey and joinTarget and not State.GamemodeSession.Active and not inGamemodeZone then
+                if State.AutoUseKey and targetValue and not State.GamemodeSession.Active and not inGamemodeZone then
+                    local openArgs = {}
+                    if mIndex then
+                        -- กรณีมีตัวเลขต่อท้าย เช่น "Raid:1" จะส่ง {"Raid", 1}
+                        openArgs = { mName, mIndex }
+                    else
+                        -- กรณีไม่มีตัวเลข เช่น "ShadowGate" จะส่ง {"ShadowGate"}
+                        openArgs = { mName }
+                    end
+                    
                     local args = {
-                    	"Open Gamemode",
-                    	{
-                    		targetValue
-                    	}
+                        "Open Gamemode",
+                        openArgs
                     }
                     Reliable:FireServer(unpack(args))
                     State.GamemodeSession.Mode = targetValue
