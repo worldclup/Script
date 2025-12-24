@@ -60,7 +60,7 @@ local function PlayPortalGreenBlurLoading()
     Desc.Text = "Anime Weapons"
     Desc.Font = Enum.Font.GothamMedium
     Desc.TextSize = 14
-    Desc.TextColor3 = Color3.fromHex("#FF3B3B")
+    Desc.TextColor3 = Color3.fromHex("#50C878")
     Desc.Size = UDim2.new(1, -60, 0, 20)
     Desc.Position = UDim2.fromOffset(32, 65)
     Desc.BackgroundTransparency = 1
