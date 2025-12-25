@@ -55,6 +55,7 @@ local RollGachaUpgradeModule = ConfigsPath.RollGachaUpgrades;
 local TrainerModule = ConfigsPath.Trainers;
 local LevelUpModule = require(ConfigsPath.General.LevelUp)
 local CraftModule = require(ConfigsPath.Crafts)
+local MegabossModule = require(ConfigsPath.Machines.MegaBoss);
 
 local ChanceModules = {};
 local ChancePath = ReplicatedStorage.Scripts.Configs:FindFirstChild("ChanceUpgrades");
@@ -98,6 +99,9 @@ end;
 local function FormatNumber(n)
 	return UtilsModule.ToText(n);
 end;
+
+local GetMegaBossCost = MegabossModule.GetUpgradeCost
+local GetMegaBossBuff = MegabossModule.GetUpgradeBuff
 ------------------------------------------------------------------------------------
 --- All Key
 ------------------------------------------------------------------------------------
@@ -127,6 +131,7 @@ local State = {
 	SelectedEnemy = nil,
     SelectedEquipBestFarm = nil,
     SelectedEquipBestGamemode = nil,
+    SelectedEquipBestMegaBoss = nil,
 	TargetDungeon = {},
     GamemodeSession = {
         Active = false,
@@ -143,6 +148,7 @@ local State = {
     MegaBossSession = { 
         Active = false
     },
+    MegaBossUpgradeState = {},
 };
 
 LocalPlayer.CharacterAdded:Connect(function(char)
@@ -225,6 +231,7 @@ Window:OnDestroy(function()
     State.SelectedMegaBossZones = {};
     State.MegaBossTarget = nil; -- ตัวแปรนี้จะเป็นคนบอก Logic ว่า "ต้องไปด่านไหน"
     State.MegaBossSession = { Active = false };
+    State.MegaBossUpgradeState = {};
 	if CurrentZoneName ~= "" and State.SelectedEnemy then
 		-- SaveZoneConfig(CurrentZoneName, State.SelectedEnemy);
 	end;
@@ -927,6 +934,10 @@ local function LogicMegaBoss()
             Reliable:FireServer("Zone Teleport", { targetZoneId })
             task.wait(5) -- รอโหลดแมพ
 
+            if State.SelectedEquipBestMegaBoss then
+                ApplyVaultEquipBest(State.SelectedEquipBestMegaBoss)
+            end
+
             -- 2. วนลูปสแกนและตีบอส
             local bossDead = false
             local retryCount = 0
@@ -978,6 +989,9 @@ local function LogicMegaBoss()
             
             Reliable:FireServer("Zone Teleport", { originalZone })
             task.wait(5) -- รอโหลดแมพกลับ
+            if State.SelectedEquipBestFarm then
+                ApplyVaultEquipBest(State.SelectedEquipBestFarm)
+            end
             EnemyDropdown:Refresh(RefreshEnemyData())
         end
 
@@ -1200,7 +1214,9 @@ end)
 for _, info in ipairs(zonesRaw) do
     table.insert(zoneDisplayList, { Title = info.Name, Value = info.Id})
 end
-
+------------------------------------------------------------------------------------
+---
+------------------------------------------------------------------------------------
 local MegaBossTab = MainSection:Tab({
 	Title = "Mega Boss",
 	Icon = "biohazard",
@@ -1208,8 +1224,14 @@ local MegaBossTab = MainSection:Tab({
 	IconShape = "Square",
 });
 
+MegaBossTab:Section({
+    Title = "Mega Boss",
+	TextSize = 14,
+})
+
 MegaBossTab:Dropdown({
     Title = "Mega Boss Zone Filter",
+    Desc = "Selected zone farm megaboss",
     Values = zoneDisplayList, -- แสดงชื่อด่าน
     Multi = true,
 	AllowNone = true,
@@ -1229,9 +1251,52 @@ MegaBossTab:Toggle({
 		end;
 	end
 });
+------------------------------------------------------------------------------------
+---
+------------------------------------------------------------------------------------
+MegaBossTab:Section({
+    Title = "Upgrades",
+	TextSize = 14,
+})
+-- 1. ดึงรายชื่อ Upgrade ทั้งหมดมาเก็บไว้ในตารางเพื่อเรียงลำดับ (Mastery, Damage, Yen, Luck)
+local upgradeNames = {}
+for name, _ in pairs(MegabossModule.Upgrades) do
+    table.insert(upgradeNames, name)
+end
+table.sort(upgradeNames) -- เรียงลำดับชื่อเพื่อให้ UI ดูเป็นระเบียบ
 
--- MegaBossTab:
+local MegaBossToggleUI = {}
+local MegaBossCurrentGroup = nil
 
+-- ส่วนแสดงสถานะภาพรวม
+local MegaBossProgressUI = MegaBossTab:Paragraph({
+    Title = "MegaBoss Upgrade Progress",
+    Desc = "Status: Monitoring Upgrades...",
+    Image = "geist:chevron-double-up",
+    ImageSize = 32
+})
+
+-- 2. สร้าง UI Toggle โดยดึงชื่อมาจากรายการที่เราเตรียมไว้
+for i, name in ipairs(upgradeNames) do
+    -- สร้าง Group ทุกๆ 2 รายการ (แสดงผลแบบ 2 คอลัมน์)
+    if i % 2 == 1 then
+        MegaBossCurrentGroup = MegaBossTab:Group({})
+    end
+
+    -- กำหนดค่าเริ่มต้นใน State
+    State.MegaBossUpgradeState[name] = false
+
+    -- สร้าง Toggle เข้าไปใน Group ปัจจุบัน
+    MegaBossToggleUI[name] = MegaBossCurrentGroup:Toggle({
+        Title = name,
+        Value = false,
+        Callback = function(v)
+            -- แก้ไข: ใช้ MegaBossUpgradeState ให้ตรงกับชื่อระบบ
+            State.MegaBossUpgradeState[name] = v
+            print("🔧 " .. name .. " Auto Upgrade: " .. tostring(v))
+        end
+    })
+end
 ------------------------------------------------------------------------------------
 --- MainSection Tab 3
 ------------------------------------------------------------------------------------
@@ -1280,6 +1345,27 @@ EquipTap:Dropdown({
 			State.SelectedEquipBestGamemode = nil
 		else
 			State.SelectedEquipBestGamemode = v
+		end
+	end
+})
+
+EquipTap:Dropdown({
+	Title = "Auto Equip Best (MegaBoss)",
+    Desc = "Automatically Equip Best When megaboss spawn",
+	Values = {
+        "--",
+		"Mastery",
+		"Damage",
+		"Luck",
+		"Yen"
+    },
+	Multi = false,
+	AllowNone = true,
+	Callback = function(v)
+        if v == "--" then
+			State.SelectedEquipBestMegaBoss = nil
+		else
+			State.SelectedEquipBestMegaBoss = v
 		end
 	end
 })
@@ -1639,6 +1725,42 @@ task.spawn(function()
 					end)
 				end
 			end
+
+            -- สมมติว่าใน PlayerData ใช้คีย์ชื่อ MegaBossUpgrades
+            if PlayerData.MegaBossUpgrades then
+                local MBU = PlayerData.MegaBossUpgrades
+
+                -- ดึงจำนวนเงิน/Token ที่ใช้สำหรับ MegaBoss (จาก Config คือ MegaBossToken)
+                local currentToken = PlayerData.Materials and PlayerData.Materials.MegaBossToken or 0
+                MegaBossProgressUI:SetTitle("MegaBoss Upgrade Shards")
+                MegaBossProgressUI:SetDesc(string.format("Your Tokens: %s", FormatNumber(currentToken)))
+
+                for name, toggleUI in pairs(MegaBossToggleUI) do
+                    local currentLevel = MBU[name] or 0
+                    local config = MegabossModule.Upgrades[name]
+                    local maxLevel = config and config.MaxLevel or 20 -- Default จากสคริปต์คือ 20
+
+                    pcall(function()
+                        if currentLevel >= maxLevel then
+                            -- สถานะอัปเกรดเต็ม [MAX]
+                            toggleUI:SetTitle(name .. " [MAX] ✅")
+                            local buffValue = GetMegaBossBuff(name, currentLevel)
+                            toggleUI:SetDesc(string.format("Buff: +%s%%", FormatNumber(buffValue)))
+                            toggleUI:Lock()
+                        else
+                            -- สถานะกำลังอัปเกรด
+                            toggleUI:Unlock()
+                            toggleUI:SetTitle(string.format("%s [%d/%d]", name, currentLevel, maxLevel))
+
+                            local cost = GetMegaBossCost(currentLevel, name)
+                            local buffValue = GetMegaBossBuff(name, currentLevel)
+                            local nextBuffValue = GetMegaBossBuff(name, currentLevel+1)
+
+                            toggleUI:SetDesc(string.format("Cost: %s | Buff: +%s%% -> +%s%%", FormatNumber(cost), FormatNumber(buffValue), FormatNumber(nextBuffValue)))
+                        end
+                    end)
+                end
+            end
 		end
 		task.wait(2)
 	end
@@ -1778,6 +1900,45 @@ task.spawn(function()
                         if currentLevel < maxLevel and currentToken >= (cost or 0) then
                             FireTokenUpgrade(name)
                             task.wait(0.2)
+                        end
+                    end
+                end
+
+                -- --- [ 4. Auto MegaBoss Upgrades ] ---
+                local currentMBToken = PlayerData.Materials and PlayerData.Materials.MegaBossToken or 0
+                for name, isEnabled in pairs(State.MegaBossUpgradeState) do
+                    if isEnabled then
+                        -- ❗ ตรวจสอบคีย์ใน PlayerData ว่าเก็บเลเวลอัปเกรดบอสไว้ที่ไหน (สมมติคือ MegaBossUpgrades)
+                        local currentLevel = PlayerData.MegaBossUpgrades and PlayerData.MegaBossUpgrades[name] or 0
+
+                        -- ดึง Config จาก MegabossModule
+                        local upgradeConfig = MegabossModule.Upgrades[name]
+                        local maxLevel = upgradeConfig and upgradeConfig.MaxLevel or 20 -- ปกติคือ 20
+
+                        -- คำนวณราคาจากฟังก์ชันที่เราสร้างไว้
+                        local cost = GetMegaBossCost(currentLevel, name)                
+
+                        -- เช็คเงื่อนไข: ยังไม่ตัน และ เงินพอ
+
+                        if currentLevel < maxLevel and currentMBToken >= (cost or math.huge) then
+                            -- เตรียม Arguments ให้ตรงกับที่ Remote ต้องการ
+                            local args = {
+                                "Mega Boss Upgrade", -- ชื่อคำสั่ง
+                                {
+                                    name, -- ส่งชื่ออัปเกรดโดยตรง (ไม่ต้องใส่ปีกกาซ้อน)
+                                    nil,  -- เปลี่ยนจาก Instance.new("InputObject") เป็น nil เพื่อแก้ Error
+                                    0     -- ค่าตัวเลขตามตัวอย่าง Remote
+                                }
+                            }
+                        
+                            -- ส่ง Remote ไปยัง Server
+                            Reliable:FireServer(unpack(args))
+                        
+                            -- รอดีเลย์เล็กน้อยกัน Spam
+                            task.wait(0.2)
+
+                            -- อัปเดตยอดเงินจำลองใน Loop
+                            currentMBToken = currentMBToken - cost
                         end
                     end
                 end
