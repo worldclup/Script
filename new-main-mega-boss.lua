@@ -1181,7 +1181,7 @@ GamemodeTabGroup3:Input({
 
 GamemodeTabGroup3:Toggle({
 	Title = "Auto Leave",
-    Desc = "Automatically leave when reaching the target stage",
+    Desc = "Enabled leave gamemode",
 	Flag = "AutoDungeon_Cfg",
 	Callback = function(val)
 		State.AutoLeave = val;

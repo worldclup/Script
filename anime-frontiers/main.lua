@@ -33,11 +33,16 @@ local DeepSea    = Color3.fromHex("#124076")
 local Players = game:GetService("Players");
 local LocalPlayer = Players.LocalPlayer;
 local Workspace = game:GetService("Workspace");
--- local ReplicatedStorage = game:GetService("ReplicatedStorage");
+local ReplicatedStorage = game:GetService("ReplicatedStorage");
 -- local ReplicatedFirst = game:GetService("ReplicatedFirst");
 -- local RunService = game:GetService("RunService");
 -- local Reliable = (ReplicatedStorage:WaitForChild("Reply")):WaitForChild("Reliable");
 -- local Unreliable = (ReplicatedStorage:WaitForChild("Reply")):WaitForChild("Unreliable");
+------------------------------------------------------------------------------------
+--- Module
+------------------------------------------------------------------------------------
+local ModulesPath = ReplicatedStorage.Modules;
+local RankModule = require(ModulesPath.Ranks);
 ------------------------------------------------------------------------------------
 --- All Key
 ------------------------------------------------------------------------------------
@@ -49,6 +54,7 @@ local EnemyDropdown
 local hrp
 local State = {
     AutoFarm = false,
+    AutoRankUp = false,
 };
 ------------------------------------------------------------------------------------
 --- Window UI
@@ -83,6 +89,7 @@ local Window = UI:CreateWindow({
 
 Window:OnDestroy(function()
     State.AutoFarm = false;
+    State.AutoRankUp = false;
 end);
 ------------------------------------------------------------------------------------
 --- Refresh Enemy Data
@@ -281,3 +288,91 @@ FarmTab:Toggle({
         end;
     end
 });
+------------------------------------------------------------------------------------
+--- CharacterSection
+------------------------------------------------------------------------------------
+local CharacterSection = Window:Section({
+	Title = "Character",
+	-- Icon = "user",
+	Opened = true,
+});
+------------------------------------------------------------------------------------
+--- CharacterSection Tab 1
+------------------------------------------------------------------------------------
+local RankUpTab = CharacterSection:Tab({
+	Title = "Rank Up",
+	Icon = "arrow-up-1-0",
+    IconColor = Divine,
+	IconShape = "Square",
+});
+local RankProgressUI = RankUpTab:Paragraph({
+	Title = "Rank Progress",
+	Desc = "Loading data...",
+	Image = "arrow-up-1-0",
+	ImageSize = 32
+})
+RankUpTab:Toggle({
+	Title = "Auto Rank Up",
+	Value = false,
+	Callback = function(v)
+		State.AutoRankUp = v
+	end
+})
+------------------------------------------------------------------------------------
+---
+------------------------------------------------------------------------------------
+local AllRanks = RankModule:GetRanks()
+local MaxRankCap = #AllRanks
+local function FindMyRankIndex()
+    for i, rankName in ipairs(AllRanks) do
+        for attrName, attrValue in pairs(LocalPlayer:GetAttributes()) do
+            if tostring(attrValue) == rankName then return i end
+        end
+        for _, obj in pairs(LocalPlayer:GetDescendants()) do
+            if (obj:IsA("StringValue") and obj.Value == rankName) or (obj.Name == "Rank" and obj.Value == i) then
+                return i
+            end
+        end
+    end
+    return nil
+end
+------------------------------------------------------------------------------------
+---
+------------------------------------------------------------------------------------
+task.spawn(function()
+    while true do
+        if Window.Destroyed then
+            break
+        end
+        if not Window.Closed then
+            local myRankIndex = FindMyRankIndex()
+            local currentYen = LocalPlayer.leaderstats.Yens.Value
+            
+            if myRankIndex then
+                local currentRankName = RankModule["GetRankName"](myRankIndex) or "Unknown"
+                local nextRankPrice = RankModule["GetNextRankPrice"](myRankIndex) -- ดึงราคาจาก Module
+                
+                -- ตั้งค่า Title แสดงลำดับ Rank
+                RankProgressUI:SetTitle(string.format("Rank [%d/%d] : %s", myRankIndex, MaxRankCap, currentRankName))
+                
+                -- ตั้งค่า Desc แสดงราคาที่ต้องใช้
+                if nextRankPrice then
+                    -- ใช้ฟังก์ชันช่วยจัดการตัวเลขให้ดูง่าย (เช่น 1,000,000) ถ้ามี
+                    RankProgressUI:SetDesc(string.format("Cost: %s Yen", tostring(nextRankPrice)))
+                else
+                    RankProgressUI:SetDesc("You have reached the Maximum Rank!")
+                    RankProgressUI:Lock()
+                end
+
+                if State.AutoRankUp and nextRankPrice <= currentYen then
+                    local args = {
+                    	"RankUp",
+                    	"RankUp"
+                    }
+                    game:GetService("ReplicatedStorage"):WaitForChild("Bridge"):FireServer(unpack(args))
+                end
+            end
+        end
+        task.wait(2)
+    end
+end)
