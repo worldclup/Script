@@ -55,6 +55,7 @@ local RollGachaUpgradeModule = ConfigsPath.RollGachaUpgrades;
 local TrainerModule = ConfigsPath.Trainers;
 local LevelUpModule = require(ConfigsPath.General.LevelUp)
 local CraftModule = require(ConfigsPath.Crafts)
+local MegabossModule = require(ConfigsPath.Machines.MegaBoss);
 
 local ChanceModules = {};
 local ChancePath = ReplicatedStorage.Scripts.Configs:FindFirstChild("ChanceUpgrades");
@@ -98,6 +99,9 @@ end;
 local function FormatNumber(n)
 	return UtilsModule.ToText(n);
 end;
+
+local GetMegaBossCost = MegabossModule.GetUpgradeCost
+local GetMegaBossBuff = MegabossModule.GetUpgradeBuff
 ------------------------------------------------------------------------------------
 --- All Key
 ------------------------------------------------------------------------------------
@@ -127,6 +131,7 @@ local State = {
 	SelectedEnemy = nil,
     SelectedEquipBestFarm = nil,
     SelectedEquipBestGamemode = nil,
+    SelectedEquipBestMegaBoss = nil,
 	TargetDungeon = {},
     GamemodeSession = {
         Active = false,
@@ -137,6 +142,13 @@ local State = {
     RollUpgradeState = {},
     TrainerState = {},
     AutoCraft = {},
+    AutoMegaBoss = false,
+    SelectedMegaBossZones = {},
+    MegaBossTarget = nil, -- ตัวแปรนี้จะเป็นคนบอก Logic ว่า "ต้องไปด่านไหน"
+    MegaBossSession = { 
+        Active = false
+    },
+    MegaBossUpgradeState = {},
 };
 
 LocalPlayer.CharacterAdded:Connect(function(char)
@@ -183,7 +195,7 @@ local Window = UI:CreateWindow({
 
 do
     Window:Tag({
-        Title = "v1.0.1",
+        Title = "v1.1.6",
         Icon = "github",
         Color = Color3.fromHex("#50C878")
     })
@@ -215,6 +227,11 @@ Window:OnDestroy(function()
     State.AutoCraft = {};
     State.SelectedEquipBestFarm = nil;
     State.SelectedEquipBestGamemode = nil;
+    State.AutoMegaBoss = false;
+    State.SelectedMegaBossZones = {};
+    State.MegaBossTarget = nil; -- ตัวแปรนี้จะเป็นคนบอก Logic ว่า "ต้องไปด่านไหน"
+    State.MegaBossSession = { Active = false };
+    State.MegaBossUpgradeState = {};
 	if CurrentZoneName ~= "" and State.SelectedEnemy then
 		-- SaveZoneConfig(CurrentZoneName, State.SelectedEnemy);
 	end;
@@ -425,69 +442,77 @@ local function LogicAutoFarm()
     local rayParams = RaycastParams.new()
     rayParams.FilterType = Enum.RaycastFilterType.Exclude
 
-    while State.AutoFarm do
+    while State.AutoFarm  do
         if Window.Destroyed then break end;
 
-        local myChar = Workspace:FindFirstChild(LocalPlayer.Name)
-        local myHumanoid = myChar and myChar:FindFirstChild("Humanoid")
-        if myChar then
-            hrp = myChar:FindFirstChild("HumanoidRootPart")
-            rayParams.FilterDescendantsInstances = {myChar}
-            
-            -- บังคับให้ Humanoid อยู่ในสถานะยืนตลอดเวลา (กันลอย/กันเด้ง)
-            myHumanoid:ChangeState(Enum.HumanoidStateType.RunningNoPhysics)
-        end
 
-        -- [ส่วนการหาเป้าหมายคงเดิม...]
-        if currentTargetObj and (currentTargetObj.Alive == false or not currentTargetObj.Data) then
-            currentTargetObj = nil;
-        end
+        local isBusy = (State.MegaBossSession and State.MegaBossSession.Active)
 
-        if not currentTargetObj and State.SelectedEnemy then
-            local targetName = State.SelectedEnemy.Value;
-            if targetName and hrp and GlobalEnemyMap[targetName] then
-                local closest, minDst = nil, math.huge;
-                for _, enemyObj in ipairs(GlobalEnemyMap[targetName] or {}) do
-                    if enemyObj.Alive == true and enemyObj.Data then
-                        local dst = (hrp.Position - enemyObj.Data.CFrame.Position).Magnitude;
-                        if dst < minDst then minDst = dst; closest = enemyObj; end
-                    end
-                end
-                currentTargetObj = closest;
-            end
-        end
-
-        -- --- ส่วนวาร์ปแบบดูดติดพื้น ---
-        if currentTargetObj and hrp and currentTargetObj.Data then
-            local enemyPos = currentTargetObj.Data.CFrame.Position
-            
-            -- ยิง Raycast จากตัวมอนสเตอร์ลงไปหาพื้น
-            local rayResult = Workspace:Raycast(enemyPos + Vector3.new(0, 5, 0), Vector3.new(0, -20, 0), rayParams)
-            
-            if rayResult then
-                -- หาค่า HipHeight ของตัวละครเรา (ปกติคือ 2)
-                local hipHeight = myHumanoid and myHumanoid.HipHeight or 2
+        if not isBusy then
+            local myChar = Workspace:FindFirstChild(LocalPlayer.Name)
+            local myHumanoid = myChar and myChar:FindFirstChild("Humanoid")
+            if myChar then
+                hrp = myChar:FindFirstChild("HumanoidRootPart")
+                rayParams.FilterDescendantsInstances = {myChar}
                 
-                -- คำนวณความสูง: จุดที่ Ray ยิงโดนพื้น + HipHeight + ระยะชดเชยเล็กน้อย
-                -- ลองปรับจาก 2.8 เป็น 2.5 หรือ 2.0 ถ้ายังลอยอยู่ครับ
-                local finalY = rayResult.Position.Y + hipHeight + 1.2 
-
-                local targetPos = Vector3.new(enemyPos.X, finalY, enemyPos.Z)
-                -- ยืนห่างมอนสเตอร์ 5 หน่วย
-                local myNewPos = targetPos + (currentTargetObj.Data.CFrame.LookVector * 5)
-
-                -- วาร์ปแบบล็อคแกน Y
-                hrp.CFrame = CFrame.lookAt(myNewPos, Vector3.new(enemyPos.X, finalY, enemyPos.Z))
+                -- บังคับให้ Humanoid อยู่ในสถานะยืนตลอดเวลา (กันลอย/กันเด้ง)
+                myHumanoid:ChangeState(Enum.HumanoidStateType.RunningNoPhysics)
             end
-            
-            -- หยุดแรงส่งสะสม (สำคัญมากกันตัวเด้งขึ้น)
-            hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-            hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-        end;
-
-        if currentTargetObj and currentTargetObj.Uid and Unreliable then
-            pcall(function() Unreliable:FireServer("Hit", {currentTargetObj.Uid}) end)
-        end;
+    
+            -- [ส่วนการหาเป้าหมายคงเดิม...]
+            if currentTargetObj and (currentTargetObj.Alive == false or not currentTargetObj.Data) then
+                currentTargetObj = nil;
+            end
+    
+            if not currentTargetObj and State.SelectedEnemy then
+                local targetName = State.SelectedEnemy.Value;
+                if targetName and hrp and GlobalEnemyMap[targetName] then
+                    local closest, minDst = nil, math.huge;
+                    for _, enemyObj in ipairs(GlobalEnemyMap[targetName] or {}) do
+                        if enemyObj.Alive == true and enemyObj.Data then
+                            local dst = (hrp.Position - enemyObj.Data.CFrame.Position).Magnitude;
+                            if dst < minDst then minDst = dst; closest = enemyObj; end
+                        end
+                    end
+                    currentTargetObj = closest;
+                end
+            end
+    
+            -- --- ส่วนวาร์ปแบบดูดติดพื้น ---
+            if currentTargetObj and hrp and currentTargetObj.Data then
+                local enemyPos = currentTargetObj.Data.CFrame.Position
+                
+                -- ยิง Raycast จากตัวมอนสเตอร์ลงไปหาพื้น
+                local rayResult = Workspace:Raycast(enemyPos + Vector3.new(0, 5, 0), Vector3.new(0, -20, 0), rayParams)
+                
+                if rayResult then
+                    -- หาค่า HipHeight ของตัวละครเรา (ปกติคือ 2)
+                    local hipHeight = myHumanoid and myHumanoid.HipHeight or 2
+                    
+                    -- คำนวณความสูง: จุดที่ Ray ยิงโดนพื้น + HipHeight + ระยะชดเชยเล็กน้อย
+                    -- ลองปรับจาก 2.8 เป็น 2.5 หรือ 2.0 ถ้ายังลอยอยู่ครับ
+                    local finalY = rayResult.Position.Y + hipHeight + 1.2 
+    
+                    local targetPos = Vector3.new(enemyPos.X, finalY, enemyPos.Z)
+                    -- ยืนห่างมอนสเตอร์ 5 หน่วย
+                    local myNewPos = targetPos + (currentTargetObj.Data.CFrame.LookVector * 5)
+    
+                    -- วาร์ปแบบล็อคแกน Y
+                    hrp.CFrame = CFrame.lookAt(myNewPos, Vector3.new(enemyPos.X, finalY, enemyPos.Z))
+                end
+                
+                -- หยุดแรงส่งสะสม (สำคัญมากกันตัวเด้งขึ้น)
+                hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+            end;
+    
+            if currentTargetObj and currentTargetObj.Uid and Unreliable then
+                pcall(function() Unreliable:FireServer("Hit", {currentTargetObj.Uid}) end)
+            end;
+        else
+            -- ถ้ากำลังยุ่ง (ล่าบอสหรือลงดัน) ให้เคลียร์เป้าหมายเก่าทิ้ง
+            currentTargetObj = nil
+        end
 
         task.wait(0.1);
     end;
@@ -652,7 +677,7 @@ local function LogicGamemodes()
         if Window.Destroyed then break end
         local inGamemodeZone = IsInGamemodeZone()
 
-        if State.TargetDungeon and # State.TargetDungeon > 0 and not State.GamemodeSession.Active and not inGamemodeZone then
+        if State.TargetDungeon and # State.TargetDungeon > 0 and not State.GamemodeSession.Active and not inGamemodeZone and not State.MegaBossSession.Active then
             local joinTarget = nil
             local t = os.date("*t")
             local currentMinute = t.min
@@ -688,12 +713,19 @@ local function LogicGamemodes()
                     State.GamemodeSession.Mode = targetValue
                 end
 
-                if State.AutoUseKey and joinTarget and not State.GamemodeSession.Active and not inGamemodeZone then
+                if State.AutoUseKey and targetValue and not State.GamemodeSession.Active and not inGamemodeZone then
+                    local openArgs = {}
+                    if mIndex then
+                        -- กรณีมีตัวเลขต่อท้าย เช่น "Raid:1" จะส่ง {"Raid", 1}
+                        openArgs = { mName, mIndex }
+                    else
+                        -- กรณีไม่มีตัวเลข เช่น "ShadowGate" จะส่ง {"ShadowGate"}
+                        openArgs = { mName }
+                    end
+                    
                     local args = {
-                    	"Open Gamemode",
-                    	{
-                    		targetValue
-                    	}
+                        "Open Gamemode",
+                        openArgs
                     }
                     Reliable:FireServer(unpack(args))
                     State.GamemodeSession.Mode = targetValue
@@ -792,6 +824,178 @@ local function LogicGamemodes()
         end
 
         task.wait(0.2)
+    end
+end
+------------------------------------------------------------------------------------
+---
+------------------------------------------------------------------------------------
+local TextChatService = game:GetService("TextChatService")
+
+TextChatService.OnIncomingMessage = function(message)
+    local content = message.Text
+    
+    if State.AutoMegaBoss and content and content ~= "" then
+        if string.find(content, "Mega Boss Spawned") then
+            local rawMapName = string.match(content, "at%s+(.+)")
+            if rawMapName then
+                -- ตัดเครื่องหมาย ! และ Trim ช่องว่าง
+                local mapName = rawMapName:gsub("!", ""):match("^%s*(.-)%s*$")
+                
+                local foundId = nil
+                for id, data in pairs(ZoneModule) do
+                    if data.Name and string.lower(data.Name) == string.lower(mapName) then
+                        foundId = id
+                        break
+                    end
+                end
+
+                if foundId then
+                    -- ตรวจสอบในตาราง Selected ที่เป็น {{Title, Value}}
+                    local isSelected = false
+                    if State.SelectedMegaBossZones then
+                        for _, item in ipairs(State.SelectedMegaBossZones) do
+                            if item.Value == foundId then
+                                isSelected = true
+                                break
+                            end
+                        end
+                    end
+
+                    if isSelected then
+                        State.MegaBossTarget = foundId 
+                    end
+                end
+            end
+        end
+    end
+end
+------------------------------------------------------------------------------------
+---
+------------------------------------------------------------------------------------
+function FindRealMegaBoss(zoneId)
+
+    -- ดึง Config เลือดมาตรฐานของโซนนั้น
+    local Success, ZoneConfig = pcall(function()
+        return require(ConfigsPath.MultipleZones.Enemies[zoneId])
+    end)
+    
+    local standardHP = 0
+    if Success and ZoneConfig then
+        for _, data in pairs(ZoneConfig) do
+            if data.Difficult == "Emperor" then
+                standardHP = data.MaxHealth
+                break
+            end
+        end
+    end
+
+    
+    -- สแกนหาตัวที่เลือดไม่ปกติ
+    for _, v in pairs(getgc(true)) do
+        if type(v) == "table" then
+            local config = rawget(v, "Config")
+            local alive = rawget(v, "Alive")
+            if type(config) == "table" and alive == true and config.Difficult == "Emperor" then
+                local currentMaxHP = config.MaxHealth or 0
+                
+                if currentMaxHP ~= standardHP then
+                    return v -- คืนค่า Object บอสตัวจริง
+                end
+            end
+        end
+    end
+    return nil
+end
+------------------------------------------------------------------------------------
+---
+------------------------------------------------------------------------------------
+local function LogicMegaBoss()
+    while State.AutoMegaBoss do
+        if Window.Destroyed then break end
+
+        -- 1. ตรวจสอบว่ามีเป้าหมายที่ดักจับได้จาก Chat หรือยัง
+        -- (State.MegaBossTarget จะถูกเซ็ตค่าจากระบบ TextChatService ที่เราทำไว้)
+        local inGamemodeZone = IsInGamemodeZone()
+        if State.MegaBossTarget and not State.GamemodeSession.Active and not inGamemodeZone then
+            local targetZoneId = State.MegaBossTarget
+            
+            -- ป้องกันการขัดจังหวะ: ถ้าอยู่ใน Gamemode (ดันเจี้ยน) ให้รอก่อน หรือข้ามไป
+            -- if IsInGamemodeZone() or State.GamemodeSession.Active then
+            --     task.wait(5)
+            --     continue
+            -- end
+
+            -- เริ่มกระบวนการล่าบอส
+            State.MegaBossSession.Active = true
+            local currentMap = GetCurrentMapStatus()
+            -- เก็บโซนปัจจุบันไว้เพื่อกลับมาฟาร์มต่อ
+            local originalZone = currentMap
+            
+            Reliable:FireServer("Zone Teleport", { targetZoneId })
+            task.wait(5) -- รอโหลดแมพ
+
+            if State.SelectedEquipBestMegaBoss then
+                ApplyVaultEquipBest(State.SelectedEquipBestMegaBoss)
+            end
+
+            -- 2. วนลูปสแกนและตีบอส
+            local bossDead = false
+            local retryCount = 0
+            
+            while State.AutoMegaBoss and not bossDead do
+                local boss = FindRealMegaBoss(targetZoneId)
+
+                -- เช็คว่าบอสยังอยู่, ยังไม่ตาย และมี Uid
+                if boss and boss.Alive and boss.Uid then
+                    -- ตรวจสอบพาร์ทสำหรับวาร์ป (ดึงจาก Character.HumanoidRootPart ตามโครงสร้างไฟล์)
+                    local targetPart = boss.PrimaryPart or (boss.Character and boss.Character:FindFirstChild("HumanoidRootPart"))
+
+                    -- ตรวจสอบเลือดจาก Humanoid โดยตรงเพื่อความแม่นยำ
+                    local bossHumanoid = boss.Character and boss.Character:FindFirstChildOfClass("Humanoid")
+                    local isStillAlive = not bossHumanoid or (bossHumanoid and bossHumanoid.Health > 0)         
+
+                    if hrp and targetPart and isStillAlive then
+                        retryCount = 0 -- รีเซ็ตตัวนับเมื่อยืนยันว่าบอสยังอยู่และยังไม่ตาย
+
+                        -- วาร์ปไปที่บอส
+                        hrp.CFrame = targetPart.CFrame * CFrame.new(0, 0, -5)
+
+                        -- ส่งคำสั่ง Hit (แนะนำให้วนลูปตีเล็กน้อยใน 1 รอบเพื่อความรัว)
+                        for i = 1, 3 do 
+                            pcall(function()
+                                Unreliable:FireServer("Hit", { boss.Uid })
+                            end)
+                        end
+                    else
+                        -- ถ้าเจอตัวแต่เลือดหมด หรือหา Part ไม่เจอ ให้รอการ Update อีกนิด
+                        retryCount = retryCount + 0.5
+                    end
+                else
+                    -- ถ้าไม่เจอ Object บอสในหน่วยความจำเลย (อาจจะสลายตัวไปแล้ว)
+                    retryCount = retryCount + 1
+                end         
+
+                -- เงื่อนไขการหลุดลูป: บอสหายไปจากระบบนานเกินไป (เช่น 5 วินาที)
+                if retryCount > 50 then -- 0.1 * 50 = 5 วินาที
+                    bossDead = true
+                end         
+
+                task.wait(0.1)
+            end
+
+            -- 3. จบภารกิจ: วาปกลับโซนเดิม
+            State.MegaBossTarget = nil
+            State.MegaBossSession.Active = false
+            
+            Reliable:FireServer("Zone Teleport", { originalZone })
+            task.wait(5) -- รอโหลดแมพกลับ
+            if State.SelectedEquipBestFarm then
+                ApplyVaultEquipBest(State.SelectedEquipBestFarm)
+            end
+            EnemyDropdown:Refresh(RefreshEnemyData())
+        end
+
+        task.wait(1) -- เช็คทุก 1 วินาทีถ้าไม่มีบอส
     end
 end
 ------------------------------------------------------------------------------------
@@ -977,12 +1181,122 @@ GamemodeTabGroup3:Input({
 
 GamemodeTabGroup3:Toggle({
 	Title = "Auto Leave",
-    Desc = "Automatically leave when reaching the target stage",
+    Desc = "Enabled leave gamemode",
 	Flag = "AutoDungeon_Cfg",
 	Callback = function(val)
 		State.AutoLeave = val;
 	end
 });
+------------------------------------------------------------------------------------
+--- MainSection Tab 2.5
+------------------------------------------------------------------------------------
+local zoneDisplayList = {} -- สำหรับโชว์ใน UI
+
+-- 1. ดึงข้อมูลจาก Module
+local zonesRaw = {}
+for id, data in pairs(ZoneModule) do
+    if data.StarBasePercentage then
+
+        table.insert(zonesRaw, {
+            Id = id,
+            Name = data.Name,
+            Order = data.Order or 0
+        })
+    end
+end
+
+-- 2. เรียงลำดับตาม Order (เพื่อให้ใน Dropdown เรียงด่าน 1, 2, 3...)
+table.sort(zonesRaw, function(a, b)
+    return a.Order < b.Order
+end)
+
+-- 3. นำข้อมูลที่เรียงแล้วใส่ตารางสำหรับ Dropdown
+for _, info in ipairs(zonesRaw) do
+    table.insert(zoneDisplayList, { Title = info.Name, Value = info.Id})
+end
+------------------------------------------------------------------------------------
+---
+------------------------------------------------------------------------------------
+local MegaBossTab = MainSection:Tab({
+	Title = "Mega Boss",
+	Icon = "biohazard",
+    IconColor = Mythic,
+	IconShape = "Square",
+});
+
+MegaBossTab:Section({
+    Title = "Mega Boss",
+	TextSize = 14,
+})
+
+MegaBossTab:Dropdown({
+    Title = "Mega Boss Zone Filter",
+    Desc = "Selected zone farm megaboss",
+    Values = zoneDisplayList, -- แสดงชื่อด่าน
+    Multi = true,
+	AllowNone = true,
+    Callback = function(val)
+        -- val จะคืนค่าเป็น table ของ Value (ID) เช่น {"Naruto", "DragonBall"}
+        State.SelectedMegaBossZones = val
+    end
+})
+
+MegaBossTab:Toggle({
+	Title = "Auto Farm Mega Boss",
+    Desc = "Automatically farm mega boss on zone selected",
+	Callback = function(val)
+		State.AutoMegaBoss = val;
+		if val then
+			task.spawn(LogicMegaBoss);
+		end;
+	end
+});
+------------------------------------------------------------------------------------
+---
+------------------------------------------------------------------------------------
+MegaBossTab:Section({
+    Title = "Upgrades",
+	TextSize = 14,
+})
+-- 1. ดึงรายชื่อ Upgrade ทั้งหมดมาเก็บไว้ในตารางเพื่อเรียงลำดับ (Mastery, Damage, Yen, Luck)
+local upgradeNames = {}
+for name, _ in pairs(MegabossModule.Upgrades) do
+    table.insert(upgradeNames, name)
+end
+table.sort(upgradeNames) -- เรียงลำดับชื่อเพื่อให้ UI ดูเป็นระเบียบ
+
+local MegaBossToggleUI = {}
+local MegaBossCurrentGroup = nil
+
+-- ส่วนแสดงสถานะภาพรวม
+local MegaBossProgressUI = MegaBossTab:Paragraph({
+    Title = "MegaBoss Upgrade Progress",
+    Desc = "Status: Monitoring Upgrades...",
+    Image = "geist:chevron-double-up",
+    ImageSize = 32
+})
+
+-- 2. สร้าง UI Toggle โดยดึงชื่อมาจากรายการที่เราเตรียมไว้
+for i, name in ipairs(upgradeNames) do
+    -- สร้าง Group ทุกๆ 2 รายการ (แสดงผลแบบ 2 คอลัมน์)
+    if i % 2 == 1 then
+        MegaBossCurrentGroup = MegaBossTab:Group({})
+    end
+
+    -- กำหนดค่าเริ่มต้นใน State
+    State.MegaBossUpgradeState[name] = false
+
+    -- สร้าง Toggle เข้าไปใน Group ปัจจุบัน
+    MegaBossToggleUI[name] = MegaBossCurrentGroup:Toggle({
+        Title = name,
+        Value = false,
+        Callback = function(v)
+            -- แก้ไข: ใช้ MegaBossUpgradeState ให้ตรงกับชื่อระบบ
+            State.MegaBossUpgradeState[name] = v
+            print("🔧 " .. name .. " Auto Upgrade: " .. tostring(v))
+        end
+    })
+end
 ------------------------------------------------------------------------------------
 --- MainSection Tab 3
 ------------------------------------------------------------------------------------
@@ -1031,6 +1345,27 @@ EquipTap:Dropdown({
 			State.SelectedEquipBestGamemode = nil
 		else
 			State.SelectedEquipBestGamemode = v
+		end
+	end
+})
+
+EquipTap:Dropdown({
+	Title = "Auto Equip Best (MegaBoss)",
+    Desc = "Automatically Equip Best When megaboss spawn",
+	Values = {
+        "--",
+		"Mastery",
+		"Damage",
+		"Luck",
+		"Yen"
+    },
+	Multi = false,
+	AllowNone = true,
+	Callback = function(v)
+        if v == "--" then
+			State.SelectedEquipBestMegaBoss = nil
+		else
+			State.SelectedEquipBestMegaBoss = v
 		end
 	end
 })
@@ -1390,6 +1725,42 @@ task.spawn(function()
 					end)
 				end
 			end
+
+            -- สมมติว่าใน PlayerData ใช้คีย์ชื่อ MegaBossUpgrades
+            if PlayerData.MegaBossUpgrades then
+                local MBU = PlayerData.MegaBossUpgrades
+
+                -- ดึงจำนวนเงิน/Token ที่ใช้สำหรับ MegaBoss (จาก Config คือ MegaBossToken)
+                local currentToken = PlayerData.Materials and PlayerData.Materials.MegaBossToken or 0
+                MegaBossProgressUI:SetTitle("MegaBoss Upgrade Shards")
+                MegaBossProgressUI:SetDesc(string.format("Your Tokens: %s", FormatNumber(currentToken)))
+
+                for name, toggleUI in pairs(MegaBossToggleUI) do
+                    local currentLevel = MBU[name] or 0
+                    local config = MegabossModule.Upgrades[name]
+                    local maxLevel = config and config.MaxLevel or 20 -- Default จากสคริปต์คือ 20
+
+                    pcall(function()
+                        if currentLevel >= maxLevel then
+                            -- สถานะอัปเกรดเต็ม [MAX]
+                            toggleUI:SetTitle(name .. " [MAX] ✅")
+                            local buffValue = GetMegaBossBuff(name, currentLevel)
+                            toggleUI:SetDesc(string.format("Buff: +%s%%", FormatNumber(buffValue)))
+                            toggleUI:Lock()
+                        else
+                            -- สถานะกำลังอัปเกรด
+                            toggleUI:Unlock()
+                            toggleUI:SetTitle(string.format("%s [%d/%d]", name, currentLevel, maxLevel))
+
+                            local cost = GetMegaBossCost(currentLevel, name)
+                            local buffValue = GetMegaBossBuff(name, currentLevel)
+                            local nextBuffValue = GetMegaBossBuff(name, currentLevel+1)
+
+                            toggleUI:SetDesc(string.format("Cost: %s | Buff: +%s%% -> +%s%%", FormatNumber(cost), FormatNumber(buffValue), FormatNumber(nextBuffValue)))
+                        end
+                    end)
+                end
+            end
 		end
 		task.wait(2)
 	end
@@ -1529,6 +1900,45 @@ task.spawn(function()
                         if currentLevel < maxLevel and currentToken >= (cost or 0) then
                             FireTokenUpgrade(name)
                             task.wait(0.2)
+                        end
+                    end
+                end
+
+                -- --- [ 4. Auto MegaBoss Upgrades ] ---
+                local currentMBToken = PlayerData.Materials and PlayerData.Materials.MegaBossToken or 0
+                for name, isEnabled in pairs(State.MegaBossUpgradeState) do
+                    if isEnabled then
+                        -- ❗ ตรวจสอบคีย์ใน PlayerData ว่าเก็บเลเวลอัปเกรดบอสไว้ที่ไหน (สมมติคือ MegaBossUpgrades)
+                        local currentLevel = PlayerData.MegaBossUpgrades and PlayerData.MegaBossUpgrades[name] or 0
+
+                        -- ดึง Config จาก MegabossModule
+                        local upgradeConfig = MegabossModule.Upgrades[name]
+                        local maxLevel = upgradeConfig and upgradeConfig.MaxLevel or 20 -- ปกติคือ 20
+
+                        -- คำนวณราคาจากฟังก์ชันที่เราสร้างไว้
+                        local cost = GetMegaBossCost(currentLevel, name)                
+
+                        -- เช็คเงื่อนไข: ยังไม่ตัน และ เงินพอ
+
+                        if currentLevel < maxLevel and currentMBToken >= (cost or math.huge) then
+                            -- เตรียม Arguments ให้ตรงกับที่ Remote ต้องการ
+                            local args = {
+                                "Mega Boss Upgrade", -- ชื่อคำสั่ง
+                                {
+                                    name, -- ส่งชื่ออัปเกรดโดยตรง (ไม่ต้องใส่ปีกกาซ้อน)
+                                    nil,  -- เปลี่ยนจาก Instance.new("InputObject") เป็น nil เพื่อแก้ Error
+                                    0     -- ค่าตัวเลขตามตัวอย่าง Remote
+                                }
+                            }
+                        
+                            -- ส่ง Remote ไปยัง Server
+                            Reliable:FireServer(unpack(args))
+                        
+                            -- รอดีเลย์เล็กน้อยกัน Spam
+                            task.wait(0.2)
+
+                            -- อัปเดตยอดเงินจำลองใน Loop
+                            currentMBToken = currentMBToken - cost
                         end
                     end
                 end
