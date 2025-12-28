@@ -2379,7 +2379,7 @@ AvatarCurrentGroup:Button({
         Reliable:FireServer(unpack(args))
 	end
 });
-AvataTab:Toggle({
+local AvatarToggle = AvataTab:Toggle({
     Title = "Auto Upgrade",
     Value = false,
     Callback = function(v)
@@ -2616,7 +2616,8 @@ task.spawn(function()
                         AvatarProgressUI:SetTitle(string.format("Avatar: %s", PlayerData.Attributes.Avatar))
 
                         if currentAvatarLevel >= maxLevel then
-                            AvatarProgressUI:SetDesc("Level: [MAX] ✅\nBuff: +%s%%", FormatNumber(buff))
+                            AvatarProgressUI:SetDesc(string.format("Level: [MAX] ✅\nBuff: +%s%%", FormatNumber(buff)))
+                            AvatarToggle:Lock()
                         else
                             local nextBuff = AvatarLevelGetBuff(currentAvatarLevel + 1)
                             local currentToken = PlayerData.Materials and PlayerData.Materials.AvatarToken or 0
