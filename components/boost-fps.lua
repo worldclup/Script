@@ -220,14 +220,6 @@ coroutine.wrap(pcall)(function()
             })
             warn("Your exploit does not support sethiddenproperty, please use a different exploit.")
         end
-        -- if _G.SendNotifications then
-        --     StarterGui:SetCore("SendNotification", {
-        --         Title = "DEK DEV HUB",
-        --         Text = "Low Water Graphics Enabled",
-        --         Duration = 5,
-        --         Button1 = "Okay"
-        --     })
-        -- end
         if _G.ConsoleLogs then
             warn("Low Water Graphics Enabled")
         end
@@ -249,14 +241,6 @@ coroutine.wrap(pcall)(function()
             })
             warn("Your exploit does not support sethiddenproperty, please use a different exploit.")
         end
-        -- if _G.SendNotifications then
-        --     StarterGui:SetCore("SendNotification", {
-        --         Title = "DEK DEV HUB",
-        --         Text = "No Shadows Enabled",
-        --         Duration = 5,
-        --         Button1 = "Okay"
-        --     })
-        -- end
         if _G.ConsoleLogs then
             warn("No Shadows Enabled")
         end
@@ -266,14 +250,6 @@ coroutine.wrap(pcall)(function()
     if _G.Settings["Low Rendering"] or (_G.Settings.Other and _G.Settings.Other["Low Rendering"]) then
         settings().Rendering.QualityLevel = 1
         settings().Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level04
-        -- if _G.SendNotifications then
-        --     StarterGui:SetCore("SendNotification", {
-        --         Title = "DEK DEV HUB",
-        --         Text = "Low Rendering Enabled",
-        --         Duration = 5,
-        --         Button1 = "Okay"
-        --     })
-        -- end
         if _G.ConsoleLogs then
             warn("Low Rendering Enabled")
         end
@@ -285,14 +261,6 @@ coroutine.wrap(pcall)(function()
             v:Destroy()
         end
         MaterialService.Use2022Materials = false
-        -- if _G.SendNotifications then
-        --     StarterGui:SetCore("SendNotification", {
-        --         Title = "DEK DEV HUB",
-        --         Text = "Reset Materials Enabled",
-        --         Duration = 5,
-        --         Button1 = "Okay"
-        --     })
-        -- end
         if _G.ConsoleLogs then
             warn("Reset Materials Enabled")
         end
@@ -303,27 +271,11 @@ coroutine.wrap(pcall)(function()
         if setfpscap then
             if type(_G.Settings["FPS Cap"] or (_G.Settings.Other and _G.Settings.Other["FPS Cap"])) == "string" or type(_G.Settings["FPS Cap"] or (_G.Settings.Other and _G.Settings.Other["FPS Cap"])) == "number" then
                 setfpscap(tonumber(_G.Settings["FPS Cap"] or (_G.Settings.Other and _G.Settings.Other["FPS Cap"])))
-                -- if _G.SendNotifications then
-                --     StarterGui:SetCore("SendNotification", {
-                --         Title = "DEK DEV HUB",
-                --         Text = "FPS Capped to " .. tostring(_G.Settings["FPS Cap"] or (_G.Settings.Other and _G.Settings.Other["FPS Cap"])),
-                --         Duration = 5,
-                --         Button1 = "Okay"
-                --     })
-                -- end
                 if _G.ConsoleLogs then
                     warn("FPS Capped to " .. tostring(_G.Settings["FPS Cap"] or (_G.Settings.Other and _G.Settings.Other["FPS Cap"])))
                 end
             elseif _G.Settings["FPS Cap"] or (_G.Settings.Other and _G.Settings.Other["FPS Cap"]) == true then
                 setfpscap(1e6)
-                -- if _G.SendNotifications then
-                --     StarterGui:SetCore("SendNotification", {
-                --         Title = "DEK DEV HUB",
-                --         Text = "FPS Uncapped",
-                --         Duration = 5,
-                --         Button1 = "Okay"
-                --     })
-                -- end
                 if _G.ConsoleLogs then
                     warn("FPS Uncapped")
                 end
@@ -345,14 +297,6 @@ coroutine.wrap(pcall)(function()
             for _, v in pairs(getnilinstances()) do
                 pcall(v.Destroy, v)
             end
-            -- if _G.SendNotifications then
-            --     StarterGui:SetCore("SendNotification", {
-            --         Title = "DEK DEV HUB",
-            --         Text = "Cleared Nil Instances",
-            --         Duration = 5,
-            --         Button1 = "Okay"
-            --     })
-            -- end
         else
             StarterGui:SetCore("SendNotification", {
                 Title = "DEK DEV HUB",
