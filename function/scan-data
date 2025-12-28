@@ -1,0 +1,86 @@
+local function GetPlayerData()
+    if getgenv().PlayerData then return getgenv().PlayerData end
+    for _, v in pairs(getgc(true)) do
+        if type(v) == "table" and rawget(v, "Attributes") and rawget(v, "YenUpgrades") then
+            getgenv().PlayerData = v
+            return v
+        end
+    end
+end
+
+local PlayerData = GetPlayerData()
+-- for k, v in pairs(PlayerData) do
+--     if type(v) == "table" then
+--         print("Found Table Key: " .. k)
+--         -- ถ้าเจอโต๊ะที่น่าสงสัย เช่น 'Avatar' ให้ลองส่องดูข้างใน
+--         if k:lower():find("avatar") then
+--             for subK, subV in pairs(v) do
+--                 print("   --> SubKey: " .. subK .. " | Value: " .. tostring(subV))
+--             end
+--         end
+--     elseif tostring(k):lower():find("avatar") then
+--         print("Found Value Key: " .. k .. " | Value: " .. tostring(v))
+--     end
+-- end
+
+local found = false
+print("🔍 --- Searching for Equipped Avatar ---")
+
+-- -- 1. ค้นหาในระดับบนสุดของ PlayerData
+-- for k, v in pairs(PlayerData) do
+--     if string.find(string.lower(k), "avatar") then
+--         if type(v) == "string" then
+--             print(string.format("✅ [Found String] Key: %s | Value: %s", k, v))
+--             found = true
+--         elseif type(v) == "table" then
+--             print(string.format("📂 [Found Table] Key: %s", k))
+--             -- ส่องดูข้างใน Table ว่ามีอะไรที่ระบุว่าใส่ตัวไหนอยู่ไหม
+--             for subK, subV in pairs(v) do
+--                 -- if subK == "Equipped" or subK == "Current" or subK == "Name" then
+--                     print(string.format("   ➡️ SubKey: %s | Value: %s", subK, tostring(subV)))
+--                     found = true
+--                 -- end
+--             end
+--         end
+--     end
+-- end
+
+local PlayerData = GetPlayerData()
+if not PlayerData then 
+    print("❌ ไม่พบ PlayerData") 
+    return 
+end
+
+print("------------------------------------------")
+print("🔍 เริ่มการสแกนหาข้อมูล Avatar และการสวมใส่")
+print("------------------------------------------")
+
+local function DeepScan(tab, depth, path)
+    if depth > 4 then return end -- จำกัดความลึกเพื่อป้องกันค้าง
+    for k, v in pairs(tab) do
+        local currentPath = path .. "." .. tostring(k)
+        local keyLower = tostring(k):lower()
+        
+        -- ค้นหาคีย์ที่น่าสงสัย (Avatar, Equipped, Hero, Level, Craft)
+        if keyLower:find("avatar") or keyLower:find("equipped") or keyLower:find("hero") or keyLower:find("level") or keyLower:find("craft") then
+            if type(v) == "table" then
+                print(string.format("📂 [TABLE] Path: %s", currentPath))
+                -- สแกนชั้นในต่อ
+                for subK, subV in pairs(v) do
+                    print(string.format("   ➡️ %s = %s", tostring(subK), tostring(subV)))
+                end
+            else
+                print(string.format("✅ [VALUE] Path: %s | Value: %s", currentPath, tostring(v)))
+            end
+        end
+        
+        -- ถ้าเป็น Table ให้สแกนลึกลงไปอีก
+        if type(v) == "table" and k ~= "_G" and k ~= "shared" then
+            DeepScan(v, depth + 1, currentPath)
+        end
+    end
+end
+
+DeepScan(PlayerData, 1, "PlayerData")
+print("------------------------------------------")
+print("🏁 การสแกนเสร็จสิ้น")

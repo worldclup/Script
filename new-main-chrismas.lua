@@ -56,6 +56,7 @@ local TrainerModule = ConfigsPath.Trainers;
 local LevelUpModule = require(ConfigsPath.General.LevelUp)
 local CraftModule = require(ConfigsPath.Crafts)
 local MegabossModule = require(ConfigsPath.Machines.MegaBoss);
+local AvatarLevelModule = require(ConfigsPath.Machines.AvatarLevels);
 
 local ChanceModules = {};
 local ChancePath = ReplicatedStorage.Scripts.Configs:FindFirstChild("ChanceUpgrades");
@@ -102,6 +103,9 @@ end;
 
 local GetMegaBossCost = MegabossModule.GetUpgradeCost
 local GetMegaBossBuff = MegabossModule.GetUpgradeBuff
+
+local AvatarLevelGetCost = AvatarLevelModule.GetCost
+local AvatarLevelGetBuff = AvatarLevelModule.GetBuff
 ------------------------------------------------------------------------------------
 --- All Key
 ------------------------------------------------------------------------------------
@@ -149,6 +153,7 @@ local State = {
         Active = false
     },
     MegaBossUpgradeState = {},
+    AutoAvatarUpgrade = false,
 };
 
 LocalPlayer.CharacterAdded:Connect(function(char)
@@ -164,8 +169,8 @@ end);
 ------------------------------------------------------------------------------------
 --- Window UI
 ------------------------------------------------------------------------------------
-local UI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/components/loading-aw.lua"))()
+local UI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
 local Window = UI:CreateWindow({
     -- Title = "🅳🅴🅺 🅳🅴🆅 🅷🆄🅱",
@@ -232,6 +237,7 @@ Window:OnDestroy(function()
     State.MegaBossTarget = nil; -- ตัวแปรนี้จะเป็นคนบอก Logic ว่า "ต้องไปด่านไหน"
     State.MegaBossSession = { Active = false };
     State.MegaBossUpgradeState = {};
+    State.AutoAvatarUpgrade = false;
 	if CurrentZoneName ~= "" and State.SelectedEnemy then
 		-- SaveZoneConfig(CurrentZoneName, State.SelectedEnemy);
 	end;
@@ -1305,7 +1311,6 @@ for i, name in ipairs(upgradeNames) do
         Callback = function(v)
             -- แก้ไข: ใช้ MegaBossUpgradeState ให้ตรงกับชื่อระบบ
             State.MegaBossUpgradeState[name] = v
-            print("🔧 " .. name .. " Auto Upgrade: " .. tostring(v))
         end
     })
 end
@@ -2279,12 +2284,20 @@ for _, zoneInfo in ipairs(zones) do
     end
 end
 ------------------------------------------------------------------------------------
+--- EnchantSection
+------------------------------------------------------------------------------------
+local EnchantSection = Window:Section({
+	Title = "Enchant",
+	-- Icon = "dices",
+	Opened = true,
+});
+------------------------------------------------------------------------------------
 ---
 ------------------------------------------------------------------------------------
-local CraftTab = GachaSection:Tab({
+local CraftTab = EnchantSection:Tab({
 	Title = "Crafts",
 	Icon = "blocks",
-	IconColor = Purple,
+	IconColor = Green,
 	IconShape = "Square",
 })
 local CraftToggleUI = {}
@@ -2328,6 +2341,51 @@ for i, id in ipairs(keys) do
         end
     })
 end
+------------------------------------------------------------------------------------
+---
+------------------------------------------------------------------------------------
+local AvataTab = EnchantSection:Tab({
+	Title = "Avatars",
+	Icon = "user-star",
+	IconColor = Green,
+	IconShape = "Square",
+})
+
+local AvatarProgressUI = AvataTab:Paragraph({
+	Title = "local Avatar Progress",
+	Desc = "Loading data...",
+	Image = "hand-fist",
+	ImageSize = 32
+})
+
+AvatarCurrentGroup = AvataTab:Group({})
+AvatarCurrentGroup:Button({
+	Title = "Max Level UP",
+	Icon = "sparkles",
+	Callback = function()
+		local args = {
+        	"Avatar Max Upgrade"
+        }
+        Reliable:FireServer(unpack(args))
+	end
+});
+AvatarCurrentGroup:Button({
+	Title = "Level UP",
+	Icon = "sparkle",
+	Callback = function()
+		local args = {
+        	"Avatar Upgrade"
+        }
+        Reliable:FireServer(unpack(args))
+	end
+});
+AvataTab:Toggle({
+    Title = "Auto Upgrade",
+    Value = false,
+    Callback = function(v)
+        State.AutoAvatarUpgrade = v
+    end
+})
 ------------------------------------------------------------------------------------
 ---
 ------------------------------------------------------------------------------------
@@ -2543,6 +2601,33 @@ task.spawn(function()
                         end)
                     end
                 end
+
+                if PlayerData.Attributes and PlayerData.Attributes.Avatar  then
+                    -- ดึงข้อมูลเลเวลเฉพาะตัวที่สวมใส่ (ไม่ใช้ Loop เพื่อประหยัดสเปค)
+                    local avatarLevels = PlayerData.AvatarLevels or {}
+                    local currentAvatarLevel = avatarLevels[PlayerData.Attributes.Avatar] or 0
+                    pcall(function()
+                        -- ดึงค่าจาก Module คำนวณ
+                        local cost = AvatarLevelGetCost(currentAvatarLevel)
+                        local buff = AvatarLevelGetBuff(currentAvatarLevel)
+                        local maxLevel = AvatarLevelModule.MaxLevel or 100
+
+                        -- อัปเดต UI Progress
+                        AvatarProgressUI:SetTitle(string.format("Avatar: %s", PlayerData.Attributes.Avatar))
+
+                        if currentAvatarLevel >= maxLevel then
+                            AvatarProgressUI:SetDesc("Level: [MAX] ✅\nBuff: +%s%%", FormatNumber(buff))
+                        else
+                            local nextBuff = AvatarLevelGetBuff(currentAvatarLevel + 1)
+                            local currentToken = PlayerData.Materials and PlayerData.Materials.AvatarToken or 0
+
+                            AvatarProgressUI:SetDesc(string.format(
+                                "Level: [%d/%d]\nCost: %s/%s \nBuff: +%s%% -> +%s%%",
+                                currentAvatarLevel, maxLevel, FormatNumber(currentToken), FormatNumber(cost), FormatNumber(buff), FormatNumber(nextBuff)
+                            ))
+                        end
+                    end)
+                end
             end
         end
         -- 3. เพิ่มเวลาการรอ (Wait) เป็น 1.5 หรือ 2 วินาที เพื่อลดภาระเครื่อง
@@ -2561,27 +2646,64 @@ task.spawn(function()
         -- ดึงข้อมูล PlayerData ล่าสุดจากถังข้อมูลกลาง
 		local PlayerData = GetPlayerData()
 		if PlayerData then
+            -- for name, enabled in pairs(State.GachaState) do
+            --     local configData = RollConfigCache[name]
+		    -- 	if enabled then
+            --         -- 1. ค้นหาชื่อ Token และจำนวนที่มีปัจจุบัน
+		    -- 		local tokenKey = configData.Material or (name .. "Token")
+		    -- 		local currentAmount = (PlayerData and PlayerData.Materials and PlayerData.Materials[tokenKey]) or 0
+
+            --         -- 2. เงื่อนไข: ถ้าของมีตั้งแต่ 10 ชิ้นขึ้นไป ถึงจะส่ง Remote
+		    -- 		if currentAmount >= 10 then
+		    -- 			local args = {
+		    -- 				[1] = "Crate Roll Start",
+		    -- 				[2] = {
+		    -- 					[1] = name,
+		    -- 					[2] = false,
+		    -- 				}
+		    -- 			}
+		    -- 			Reliable:FireServer(unpack(args))
+		    -- 			task.wait(0.5) -- ดีเลย์ระหว่างการส่งแต่ละครั้ง
+		    -- 		end
+		    -- 	end
+		    -- end
             for name, enabled in pairs(State.GachaState) do
                 local configData = RollConfigCache[name]
-		    	if enabled then
-                    -- 1. ค้นหาชื่อ Token และจำนวนที่มีปัจจุบัน
-		    		local tokenKey = configData.Material or (name .. "Token")
-		    		local currentAmount = (PlayerData and PlayerData.Materials and PlayerData.Materials[tokenKey]) or 0
+                if enabled and configData then
+                    -- 1. เช็คก่อนว่าสุ่มจนตัน (Max Level) หรือยัง
+                    local targetMaxLevel = configData.MaxLevel
+                    local isMaxed = PlayerData.Vault and PlayerData.Vault[name] and PlayerData.Vault[name][targetMaxLevel] == true          
 
-                    -- 2. เงื่อนไข: ถ้าของมีตั้งแต่ 10 ชิ้นขึ้นไป ถึงจะส่ง Remote
-		    		if currentAmount >= 10 then
-		    			local args = {
-		    				[1] = "Crate Roll Start",
-		    				[2] = {
-		    					[1] = name,
-		    					[2] = false,
-		    				}
-		    			}
-		    			Reliable:FireServer(unpack(args))
-		    			task.wait(0.5) -- ดีเลย์ระหว่างการส่งแต่ละครั้ง
-		    		end
-		    	end
-		    end
+                    if isMaxed then
+                        -- ถ้าตันแล้ว ให้ปิดระบบ Roll สำหรับไอเทมนี้ทันที
+                        State.GachaState[name] = false
+
+                        -- อัปเดต UI Toggle ให้เป็นปิด (เพื่อความสอดคล้อง)
+                        if RollToggleUI[name] then
+                            RollToggleUI[name]:Set(false)
+                            RollToggleUI[name]:SetTitle(name .. " [MAX] ✅")
+                            RollToggleUI[name]:Lock()
+                        end
+                    else
+                        -- 2. ถ้ายังไม่ตัน ให้เช็คจำนวน Token ต่อ
+                        local tokenKey = configData.Material or (name .. "Token")
+                        local currentAmount = (PlayerData and PlayerData.Materials and PlayerData.Materials[tokenKey]) or 0         
+
+                        -- 3. เงื่อนไข: ถ้าของมีตั้งแต่ 10 ชิ้นขึ้นไป ถึงจะส่ง Remote
+                        if currentAmount >= 10 then
+                            local args = {
+                                [1] = "Crate Roll Start",
+                                [2] = {
+                                    [1] = name,
+                                    [2] = false,
+                                }
+                            }
+                            Reliable:FireServer(unpack(args))
+                            task.wait(0.5) -- ดีเลย์ระหว่างการส่งแต่ละครั้ง
+                        end
+                    end
+                end
+            end
 
             for name, enabled in pairs(State.RollUpgradeState) do
                 if enabled then
@@ -2695,6 +2817,35 @@ task.spawn(function()
                                 Reliable:FireServer("Upgrade Craft", { id })
                             end)
                             -- รอให้เซิร์ฟเวอร์อัปเดตข้อมูล (Cooldown)
+                            task.wait(0.5)
+                        end
+                    end
+                end
+            end
+
+            -- --- [ Auto Avatar Upgrade Loop ] ---
+            if State.AutoAvatarUpgrade then
+                -- 1. ตรวจสอบว่าสวมใส่ Avatar อยู่หรือไม่
+                local equippedName = PlayerData.Attributes and PlayerData.Attributes.Avatar
+
+                if equippedName and equippedName ~= "" then
+                    -- 2. ดึงเลเวลปัจจุบัน
+                    local avatarLevels = PlayerData.AvatarLevels or {}
+                    local currentLevel = avatarLevels[equippedName] or 0
+                    local maxLevel = AvatarLevelModule.MaxLevel or 100
+
+                    -- 3. ตรวจสอบว่าเลเวลเต็มหรือยัง
+                    if currentLevel < maxLevel then
+                        -- 4. คำนวณราคาและเช็คจำนวน Token ที่มี
+                        local cost = AvatarLevelGetCost(currentLevel)
+                        local currentToken = PlayerData.Materials and PlayerData.Materials.AvatarToken or 0
+
+                        if currentToken >= cost then
+                            -- 5. ส่ง Remote อัปเกรด
+                            local args = { "Avatar Upgrade" }
+                            Reliable:FireServer(unpack(args))
+
+                            -- หน่วงเวลาเพื่อรอการอัปเดตข้อมูลจากเซิร์ฟเวอร์
                             task.wait(0.5)
                         end
                     end
