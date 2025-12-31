@@ -2736,6 +2736,13 @@ task.spawn(function()
                                 toggleUI:SetTitle(string.format("%s [MAX] ✅", category))
                                 toggleUI:SetDesc(string.format("Rarity: %s | Buff: +%s%%", rarityName, FormatNumber(currentBuff)))
                             else
+                                if levelInRarity >= maxInRarity then
+                                    -- ลองเช็คฟังก์ชัน GetEvolveCost หากมีใน Module
+                                    local evolveCost = RarityPowerModule.GetEvolveCost(category, rarityIdx)
+                                    if evolveCost then
+                                        cost = evolveCost
+                                    end
+                                end
                                 toggleUI:SetTitle(string.format("%s [%s]", category, rarityName))
 
                                 -- เพิ่มการแสดงผลจำนวน Token ที่มี (Current / Required)
