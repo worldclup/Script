@@ -2725,7 +2725,7 @@ task.spawn(function()
                         local currentToken = PlayerData.Materials and PlayerData.Materials[tokenName] or 0
                     
                         pcall(function()
-                            local cost = GetRarityLevelCost(levelInRarity + 1)
+                            local cost = GetRarityLevelCost(tonumber(levelInRarity) + 1)
                             local currentBuff = GetRarityBuff(currentTotalLevel)
                             local nextBuff = GetRarityBuff(currentTotalLevel + 1)
                         
