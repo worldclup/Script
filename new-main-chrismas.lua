@@ -2725,17 +2725,17 @@ task.spawn(function()
                         local currentToken = PlayerData.Materials and PlayerData.Materials[tokenName] or 0
                     
                         pcall(function()
-                            local cost = GetRarityLevelCost(tonumber(levelInRarity) + 1)
                             local currentBuff = GetRarityBuff(currentTotalLevel)
                             local nextBuff = GetRarityBuff(currentTotalLevel + 1)
-                        
+                            
                             -- ตรวจสอบเงื่อนไขการอัปเกรดสูงสุด
                             local isMax = RarityPowerModule.GetEvolveCost(category, rarityIdx) == nil and levelInRarity >= maxInRarity
-                        
+                            
                             if isMax then
                                 toggleUI:SetTitle(string.format("%s [MAX] ✅", category))
                                 toggleUI:SetDesc(string.format("Rarity: %s | Buff: +%s%%", rarityName, FormatNumber(currentBuff)))
                             else
+                                local cost = GetRarityLevelCost(levelInRarity + 1)
                                 toggleUI:SetTitle(string.format("%s [%s]", category, rarityName))
 
                                 -- เพิ่มการแสดงผลจำนวน Token ที่มี (Current / Required)
