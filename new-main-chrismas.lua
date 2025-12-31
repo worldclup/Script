@@ -2725,7 +2725,7 @@ task.spawn(function()
                         local currentToken = PlayerData.Materials and PlayerData.Materials[tokenName] or 0
                     
                         pcall(function()
-                            local cost = GetRarityLevelCost(currentTotalLevel)
+                            local cost = GetRarityLevelCost(currentTotalLevel + 1)
                             local currentBuff = GetRarityBuff(currentTotalLevel)
                             local nextBuff = GetRarityBuff(currentTotalLevel + 1)
                         
@@ -2995,7 +2995,7 @@ task.spawn(function()
                         -- 4. ตรวจสอบจำนวน Token ที่มีเทียบกับราคา
                         local tokenName = currentRarityData and currentRarityData.TokenName or "RaidModeKey"
                         local currentToken = PlayerData.Materials and PlayerData.Materials[tokenName] or 0
-                        local cost = GetRarityLevelCost(currentTotalLevel)          
+                        local cost = GetRarityLevelCost(currentTotalLevel + 1)          
 
                         if currentToken >= cost then
                             -- 5. ส่ง Remote อัปเกรดตามรูปแบบที่กำหนด
