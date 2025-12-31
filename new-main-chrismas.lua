@@ -57,6 +57,7 @@ local LevelUpModule = require(ConfigsPath.General.LevelUp)
 local CraftModule = require(ConfigsPath.Crafts)
 local MegabossModule = require(ConfigsPath.Machines.MegaBoss);
 local AvatarLevelModule = require(ConfigsPath.Machines.AvatarLevels);
+local RarityPowerModule = require(ConfigsPath.RarityPower);
 
 local ChanceModules = {};
 local ChancePath = ReplicatedStorage.Scripts.Configs:FindFirstChild("ChanceUpgrades");
@@ -106,6 +107,22 @@ local GetMegaBossBuff = MegabossModule.GetUpgradeBuff
 
 local AvatarLevelGetCost = AvatarLevelModule.GetCost
 local AvatarLevelGetBuff = AvatarLevelModule.GetBuff
+
+-- ฟังก์ชันคำนวณค่า Buff รวม (5 * level)
+local function GetRarityBuff(level)
+    return RarityPowerModule.GetBuff(level)
+end
+
+-- ฟังก์ชันคำนวณราคาอัปเกรดเลเวล
+local function GetRarityLevelCost(level)
+    return RarityPowerModule.GetLevelUpCost(level)
+end
+
+-- ฟังก์ชันหาข้อมูล Rarity ปัจจุบันจาก Level
+-- คืนค่า: index_rarity, level_in_rarity, max_level_of_rarity
+local function GetCurrentRarityInfo(category, totalLevel)
+    return RarityPowerModule.GetRarityFromLevel(category, totalLevel)
+end
 ------------------------------------------------------------------------------------
 --- All Key
 ------------------------------------------------------------------------------------
@@ -146,6 +163,7 @@ local State = {
     GachaState = {},
     RollUpgradeState = {},
     TrainerState = {},
+    AutoRarityPower = {},
     AutoCraft = {},
     AutoMegaBoss = false,
     SelectedMegaBossZones = {},
@@ -231,6 +249,7 @@ Window:OnDestroy(function()
     State.GachaState = {};
     State.RollUpgradeState = {};
     State.TrainerState = {};
+    State.AutoRarityPower = {};
     State.AutoCraft = {};
     State.SelectedEquipBestFarm = nil;
     State.SelectedEquipBestGamemode = nil;
@@ -2317,6 +2336,30 @@ for _, zoneInfo in ipairs(zones) do
     end
 end
 ------------------------------------------------------------------------------------
+--- 
+------------------------------------------------------------------------------------
+local RarityPowerTab = GachaSection:Tab({
+	Title = "Rarity Power",
+	Icon = "hand-fist",
+	IconColor = Purple,
+	IconShape = "Square",
+})
+
+-- สร้าง UI สำหรับแต่ละหมวดหมู่ (Scrap, Sorcerer)
+local RarityToggles = {}
+local categoryList = {"Scrap", "Sorcerer"} -- ชื่อตามลูกใน Script
+
+for _, category in ipairs(categoryList) do
+    RarityToggles[category] = RarityPowerTab:Toggle({
+        Title = category,
+        Value = false,
+        Callback = function(v)
+            State.AutoRarityPower[category] = v
+        end
+    })
+end
+
+------------------------------------------------------------------------------------
 --- EnchantSection
 ------------------------------------------------------------------------------------
 local EnchantSection = Window:Section({
@@ -2662,6 +2705,54 @@ task.spawn(function()
                         end
                     end)
                 end
+
+                -- --- [ ส่วนของ Fetch Data Loop ] ---
+                -- สมมติคีย์ข้อมูลคือ PlayerData.RarityPower
+                if PlayerData.RarityPowers then
+                    for _, category in ipairs(categoryList) do
+                        local toggleUI = RarityToggles[category]
+                        local currentTotalLevel = PlayerData.RarityPowers[category] or 0
+                    
+                        -- 1. หาข้อมูล Rarity ปัจจุบัน
+                        local rarityIdx, levelInRarity, maxInRarity = GetCurrentRarityInfo(category, currentTotalLevel)
+                        local rarityName = RarityPowerModule.GetRarityName(category, rarityIdx)
+                    
+                        -- 2. ดึง TokenName เฉพาะของ Rarity จาก Module
+                        local categoryData = RarityPowerModule.List[category]
+                        local currentRarityData = categoryData and categoryData.List and categoryData.List[rarityIdx]
+
+                        local tokenName = currentRarityData and currentRarityData.TokenName or "RaidModeKey"
+                        local currentToken = PlayerData.Materials and PlayerData.Materials[tokenName] or 0
+                    
+                        pcall(function()
+                            local cost = GetRarityLevelCost(currentTotalLevel)
+                            local currentBuff = GetRarityBuff(currentTotalLevel)
+                            local nextBuff = GetRarityBuff(currentTotalLevel + 1)
+                        
+                            -- ตรวจสอบเงื่อนไขการอัปเกรดสูงสุด
+                            local isMax = RarityPowerModule.GetEvolveCost(category, rarityIdx) == nil and levelInRarity >= maxInRarity
+                        
+                            if isMax then
+                                toggleUI:SetTitle(string.format("%s [MAX] ✅", category))
+                                toggleUI:SetDesc(string.format("Rarity: %s | Buff: +%s%%", rarityName, FormatNumber(currentBuff)))
+                            else
+                                toggleUI:SetTitle(string.format("%s [%s]", category, rarityName))
+
+                                -- เพิ่มการแสดงผลจำนวน Token ที่มี (Current / Required)
+                                toggleUI:SetDesc(string.format(
+                                    "Lv: [%d/%d]\n%s: %s / %s\nBuff: +%s%% -> +%s%%",
+                                    levelInRarity, 
+                                    maxInRarity, 
+                                    tokenName, 
+                                    FormatNumber(currentToken), 
+                                    FormatNumber(cost),
+                                    FormatNumber(currentBuff), 
+                                    FormatNumber(nextBuff)
+                                ))
+                            end
+                        end)
+                    end
+                end
             end
         end
         -- 3. เพิ่มเวลาการรอ (Wait) เป็น 1.5 หรือ 2 วินาที เพื่อลดภาระเครื่อง
@@ -2881,6 +2972,43 @@ task.spawn(function()
 
                             -- หน่วงเวลาเพื่อรอการอัปเดตข้อมูลจากเซิร์ฟเวอร์
                             task.wait(0.5)
+                        end
+                    end
+                end
+            end
+
+            -- --- [ Auto Rarity Power Upgrade Loop ] ---
+            for category, isEnabled in pairs(State.AutoRarityPower) do
+                if isEnabled then
+                    -- 1. ดึงเลเวลปัจจุบันจาก PlayerData
+                    local currentTotalLevel = PlayerData.RarityPowers and PlayerData.RarityPowers[category] or 0
+                    
+                    -- 2. หาข้อมูล Rarity ปัจจุบันเพื่อระบุ Token ที่ต้องใช้
+                    local rarityIdx, levelInRarity, maxInRarity = GetCurrentRarityInfo(category, currentTotalLevel)
+                    local categoryData = RarityPowerModule.List[category]
+                    local currentRarityData = categoryData and categoryData.List and categoryData.List[rarityIdx]
+                    
+                    -- 3. ตรวจสอบเงื่อนไข: ยังไม่เต็ม Max Level ของหมวดหมู่นั้น
+                    local isMax = RarityPowerModule.GetEvolveCost(category, rarityIdx) == nil and levelInRarity >= maxInRarity
+                    
+                    if not isMax then
+                        -- 4. ตรวจสอบจำนวน Token ที่มีเทียบกับราคา
+                        local tokenName = currentRarityData and currentRarityData.TokenName or "RaidModeKey"
+                        local currentToken = PlayerData.Materials and PlayerData.Materials[tokenName] or 0
+                        local cost = GetRarityLevelCost(currentTotalLevel)          
+
+                        if currentToken >= cost then
+                            -- 5. ส่ง Remote อัปเกรดตามรูปแบบที่กำหนด
+                            local args = {
+                                "Upgrade Rarity Power",
+                                {
+                                    category -- เช่น "Sorcerer" หรือ "Scrap"
+                                }
+                            }
+                            Reliable:FireServer(unpack(args))
+                            
+                            -- หน่วงเวลาเล็กน้อยเพื่อรอการอัปเดตข้อมูล
+                            task.wait(0.3)
                         end
                     end
                 end
