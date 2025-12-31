@@ -2725,7 +2725,7 @@ task.spawn(function()
                         local currentToken = PlayerData.Materials and PlayerData.Materials[tokenName] or 0
                     
                         pcall(function()
-                            local cost = GetRarityLevelCost(currentTotalLevel + 1)
+                            local cost = GetRarityLevelCost(levelInRarity + 1)
                             local currentBuff = GetRarityBuff(currentTotalLevel)
                             local nextBuff = GetRarityBuff(currentTotalLevel + 1)
                         
@@ -2736,13 +2736,6 @@ task.spawn(function()
                                 toggleUI:SetTitle(string.format("%s [MAX] ✅", category))
                                 toggleUI:SetDesc(string.format("Rarity: %s | Buff: +%s%%", rarityName, FormatNumber(currentBuff)))
                             else
-                                if levelInRarity >= maxInRarity then
-                                    -- ลองเช็คฟังก์ชัน GetEvolveCost หากมีใน Module
-                                    local evolveCost = RarityPowerModule.GetEvolveCost(category, rarityIdx)
-                                    if evolveCost then
-                                        cost = evolveCost
-                                    end
-                                end
                                 toggleUI:SetTitle(string.format("%s [%s]", category, rarityName))
 
                                 -- เพิ่มการแสดงผลจำนวน Token ที่มี (Current / Required)
