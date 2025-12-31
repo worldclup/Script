@@ -2982,15 +2982,15 @@ task.spawn(function()
                 if isEnabled then
                     -- 1. ดึงเลเวลปัจจุบันจาก PlayerData
                     local currentTotalLevel = PlayerData.RarityPowers and PlayerData.RarityPowers[category] or 0
-                    
+
                     -- 2. หาข้อมูล Rarity ปัจจุบันเพื่อระบุ Token ที่ต้องใช้
                     local rarityIdx, levelInRarity, maxInRarity = GetCurrentRarityInfo(category, currentTotalLevel)
                     local categoryData = RarityPowerModule.List[category]
                     local currentRarityData = categoryData and categoryData.List and categoryData.List[rarityIdx]
-                    
+
                     -- 3. ตรวจสอบเงื่อนไข: ยังไม่เต็ม Max Level ของหมวดหมู่นั้น
                     local isMax = RarityPowerModule.GetEvolveCost(category, rarityIdx) == nil and levelInRarity >= maxInRarity
-                    
+
                     if not isMax then
                         -- 4. ตรวจสอบจำนวน Token ที่มีเทียบกับราคา
                         local tokenName = currentRarityData and currentRarityData.TokenName or "RaidModeKey"
@@ -3006,7 +3006,7 @@ task.spawn(function()
                                 }
                             }
                             Reliable:FireServer(unpack(args))
-                            
+
                             -- หน่วงเวลาเล็กน้อยเพื่อรอการอัปเดตข้อมูล
                             task.wait(0.3)
                         end
@@ -3142,3 +3142,46 @@ Window:SelectTab(1);
 Window:OnClose(function()
 
 end)
+------------------------------------------------------------------------------------
+--- 
+------------------------------------------------------------------------------------
+local function InitAutoReconnectV4()
+    -- [ Anti-AFK ส่วนเดิม ]
+    local VirtualUser = game:GetService("VirtualUser")
+    game:GetService("Players").LocalPlayer.Idled:Connect(function()
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new())
+    end)
+
+    -- 🔎 ส่วนที่เพิ่มใหม่: จัดการ UI "Auto Reconnect" ของเกม
+    task.spawn(function()
+        while task.wait(1) do
+            -- พยายามหา UI ที่ชื่อเหมือนในรูปภาพ
+            local playerGui = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+            for _, v in pairs(playerGui:GetDescendants()) do
+                if v:IsA("TextLabel") and string.find(v.Text, "Auto Reconnect") then
+                    -- 1. ซ่อน UI ทิ้ง
+                    local parentFrame = v.Parent
+                    if parentFrame and parentFrame:IsA("Frame") then
+                        parentFrame.Visible = false
+                    end
+                    v.Visible = false
+                    
+                    -- 2. เปลี่ยนข้อความเพื่อเช็คว่าสคริปต์เราทำงานแล้ว
+                    v.Text = "DEK DEV HUB Bypass Active ✅"
+                    v.TextColor3 = Color3.fromRGB(0, 255, 0)
+                end
+            end
+        end
+    end)
+
+    -- [ ระบบดักจับการตัดการเชื่อมต่อส่วนเดิม ]
+    local TeleportService = game:GetService("TeleportService")
+    local GuiService = game:GetService("GuiService")
+    GuiService.ErrorMessageChanged:Connect(function()
+        if GuiService:GetErrorCode() ~= Enum.ConnectionError.OK then
+            TeleportService:Teleport(game.PlaceId, game.Players.LocalPlayer)
+        end
+    end)
+end
+task.spawn(InitAutoReconnectV4)
