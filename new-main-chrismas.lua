@@ -124,6 +124,7 @@ local State = {
 	DefenseWave = 200,
 	ShadowGateWave = 500,
 	PirateTowerFloor = 100,
+    SorcerersDefenseWave = 200,
     AutoLeave = false,
 	AutoFuse = false,
 	AutoRankUp = false,
@@ -215,6 +216,7 @@ Window:OnDestroy(function()
     State.DefenseWave = 200;
     State.ShadowGateWave = 500;
     State.PirateTowerFloor = 100;
+    State.SorcerersDefenseWave = 200;
     State.AutoLeave = false;
 	State.AutoFuse = false;
 	State.AutoRankUp = false;
@@ -278,6 +280,10 @@ local function LeaveGamemode(mode)
 		Reliable:FireServer("Zone Teleport", {
 			"OnePiece2"
 		})
+    elseif mode == "SorcerersDefense" then
+		Reliable:FireServer("Zone Teleport", {
+			"Jujutsu"
+		})
     elseif mode == "ChristmasRaid" then
 		Reliable:FireServer("Zone Teleport", {
 			"Christmas"
@@ -304,6 +310,8 @@ local function GetCurrentGamemodeFromZone()
 		return "ShadowGate"
 	elseif zone:match("PirateTower") then
 		return "PirateTower"
+    elseif zone:match("SorcerersDefense") then
+		return "SorcerersDefense"
     elseif zone:match("ChristmasRaid") then
 		return "Christmas"
 	end
@@ -339,13 +347,13 @@ local function GetGamemodeProgress()
 		return
 	end
 
-    -- Raid / Defense / ShadowGate ใช้ wave
+    -- Dungeon ใช้ wave
 	if node:FindFirstChild("room") and node.room:FindFirstChild("amount") then
 		local txt = node.room.amount.Text
 		return mode, tonumber(txt:match("%d+"))
 	end
 
-    -- Raid / Defense / ShadowGate ใช้ wave
+    -- Raid / Defense / ShadowGate / SorcerersDefense ใช้ wave
 	if node:FindFirstChild("wave") and node.wave:FindFirstChild("amount") then
 		local txt = node.wave.amount.Text
 		return mode, tonumber(txt:match("%d+"))
@@ -371,6 +379,8 @@ local function CheckAutoLeave()
 		LeaveGamemode("Defense")
 	elseif mode == "ShadowGate" and value >= State.ShadowGateWave then
 		LeaveGamemode("ShadowGate")
+    elseif mode == "SorcerersDefense" and value >= State.SorcerersDefenseWave then
+		LeaveGamemode("SorcerersDefense")
 	elseif mode == "PirateTower" and value >= State.PirateTowerFloor then
 		LeaveGamemode("PirateTower")
 	end
@@ -545,6 +555,7 @@ local function GetAllGamemodesUnified()
         ["ShadowGate"] = 4,
         ["PirateTower"] = 5,
         ["ChristmasRaid"] = 6,
+        ["SorcerersDefense"] = 6,
     }
 
     -- 2. กำหนดลำดับของความยากภายในกลุ่ม
@@ -556,6 +567,7 @@ local function GetAllGamemodesUnified()
         ["Hard"] = 3,
         ["Default"] = 4,
         ["Insane"] = 4,
+        ["SorcerersDefense"] = 5,
     }
 
     local GamemodeMap = {
@@ -568,7 +580,8 @@ local function GetAllGamemodesUnified()
     	["Raid: Bleach"] = "Raid:2",
         ["Shadow Gate"] = "ShadowGate",
         ["Pirate Tower"] = "PirateTower",
-        ["ChristmasRaid"] = "ChristmasRaid",
+        ["Christmas Raid"] = "ChristmasRaid",
+        ["Sorcerers Defense"] = "SorcerersDefense",
     }
 
     if not allModes then return unifiedList end
@@ -647,6 +660,9 @@ local function GetCurrentMapStatus()
     if Workspace:FindFirstChild("PirateTower") then
 		return "PirateTower";
 	end;
+    if Workspace:FindFirstChild("SorcerersDefense") then
+		return "SorcerersDefense";
+    end;
     if Workspace:FindFirstChild("ChristmasRaid") then
 		return "ChristmasRaid";
 	end;
@@ -683,6 +699,7 @@ local function IsInGamemodeZone()
         or zone:match("^Defense:%d+")
         or zone:match("ShadowGate")
         or zone:match("PirateTower")
+        or zone:match("SorcerersDefense")
         or zone:match("ChristmasRaid")
 end
 ------------------------------------------------------------------------------------
@@ -1197,7 +1214,23 @@ GamemodeTabGroup3:Input({
 	end
 })
 
-GamemodeTabGroup3:Toggle({
+GamemodeTabGroup3:Input({
+	Title = "Sorcerers Defense Wave",
+    -- Desc = "Automatically exit the Pirate Tower after reaching this stage",
+	Value = State.SorcerersDefenseWave,
+	Type = "Input",
+	Callback = function(v)
+		local num = tonumber(v)
+		if not num then
+			warn("Input Number!!!")
+			return
+		end
+		State.SorcerersDefenseWave = num
+	end
+})
+
+local GamemodeTabGroup4 = GamemodeTab:Group({})
+GamemodeTab:Toggle({
 	Title = "Auto Leave",
     Desc = "Enabled leave gamemode",
 	Flag = "AutoDungeon_Cfg",
