@@ -215,7 +215,7 @@ local function LogicAuto()
                 local mHrp = targetMonster:FindFirstChild("HumanoidRootPart")
                 if mHrp then
                     local enemyPos = mHrp.Position
-                    local heightAbove = 10 
+                    local heightAbove = 15
                     local targetPosition = enemyPos + Vector3.new(0, heightAbove, 0)
 
                     myHrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
