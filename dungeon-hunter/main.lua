@@ -183,7 +183,7 @@ end
 ------------------------------------------------------------------------------------
 local function LogicAuto()
     while State.AutoFarm do
-        if Window.Destroyed then break end
+        if not State.AutoFarm then break end
         
         pcall(function()
             local activationFolder = Workspace:FindFirstChild("Creature") and Workspace.Creature:FindFirstChild("Activation")
