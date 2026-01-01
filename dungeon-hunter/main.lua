@@ -189,7 +189,7 @@ local function LogicAuto()
             
             for _, folderID in pairs(activationFolder:GetChildren()) do
                 for _, child in pairs(folderID:GetChildren()) do
-                    if child.Name:match("Monster%d+") or child.Name:match("EliteMonster%d+") or child.Name:match("Boss%d+") then 
+                    if child.Name:match("Monster%d+") or child.Name:match("EliteMonster%d+") or child.Name:match("Boss%d+") or child.Name:match("Chest%d+") then 
                         local hum = child:FindFirstChild("Humanoid")
                         local mHrp = child:FindFirstChild("HumanoidRootPart")
                         if hum and hum.Health > 0 and mHrp then
