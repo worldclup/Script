@@ -42,14 +42,6 @@ local Workspace = game:GetService("Workspace");
 --- Game Script
 ------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------
---- All Key
-------------------------------------------------------------------------------------
-local hrp
-local State = {
-	AutoFarm = false,
-};
-
-------------------------------------------------------------------------------------
 --- Window UI
 ------------------------------------------------------------------------------------
 -- loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/components/loading-aw.lua"))()
@@ -59,12 +51,13 @@ local Window = UI:CreateWindow({
     -- Title = "🅳🅴🅺 🅳🅴🆅 🅷🆄🅱",
     Title = "DEK DEV HUB", -- "🅳🅴🅺 🅳🅴🆅 🅷🆄🅱",
 	-- Icon = "keyboard",
-	SideBarWidth = 200,
+	SideBarWidth = 150,
 	Theme = "Dark", -- Dark, Darker, Light, Aqua, Amethyst, Rose
-	Size = UDim2.fromOffset(800, 400),
-	MinSize = Vector2.new(800, 400),
-    MaxSize = Vector2.new(800, 400),
-    -- NewElements = true,
+	Size = UDim2.fromOffset(400, 300),
+	MinSize = Vector2.new(400, 300),
+    MaxSize = Vector2.new(400, 300),
+    -- Theme = "Light",
+    NewElements = true,
 	-- Topbar = {
 	-- 	Height = 44,
 	-- 	ButtonsType = "Mac", -- Default or Mac
@@ -94,6 +87,10 @@ local State = {
     AutoFarm = false,
 };
 
+Window:OnDestroy(function()
+	State.AutoFarm = false;
+end);
+
 ------------------------------------------------------------------------------------
 --- Helper Functions
 ------------------------------------------------------------------------------------
@@ -118,16 +115,16 @@ local function GetCurrentRoom(myHrp)
     end
     return closestRoom
 end
+------------------------------------------------------------------------------------
+--- Helper Functions (Updated)
+------------------------------------------------------------------------------------
 
--- ฟังก์ชันโจมตีและกดสกิล (แยก Thread เพื่อไม่ให้กระตุก)
+-- ฟังก์ชันโจมตีแบบกดค้าง
 local function AutoAttack(targetMonster)
-    -- คลิกเมาส์ซ้าย (Button1)
-    -- พิกัด 0, 0 คือคลิกที่ตำแหน่งปัจจุบันของเมาส์
+    -- ส่งเฉพาะเหตุการณ์กดปุ่มค้างไว้ (true)
     VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
-    task.wait() -- รอช่วงจิ๋วเดียวให้เกมรับรู้ว่ากดลงไปแล้ว
-    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
 
-    -- กดสกิล Q, E, R
+    -- กดสกิล Q, E, R แบบรวดเร็ว
     local keys = {Enum.KeyCode.Q, Enum.KeyCode.E, Enum.KeyCode.R}
     for _, key in ipairs(keys) do
         VirtualInputManager:SendKeyEvent(true, key, false, game)
@@ -135,24 +132,34 @@ local function AutoAttack(targetMonster)
     end
 end
 
--- ฟังก์ชันเลือกประตูที่เข้าได้ (ไม่มี UnlockDoor) และวาร์ปไป UnlockVfx
 local function HandleNextStage(currentRoom, myHrp)
     local voteDoorFolder = currentRoom:FindFirstChild("VoteDoor")
     if not voteDoorFolder then return end
 
     for _, door in pairs(voteDoorFolder:GetChildren()) do
-        -- เงื่อนไข: ประตูที่เข้าได้ต้องไม่มีโมเดล UnlockDoor อยู่ภายใน
         if not door:FindFirstChild("UnlockDoor") then
             local targetVfx = door:FindFirstChild("UnlockVfx")
             if targetVfx then
-                -- วาร์ปไปที่จุด UnlockVfx
-                myHrp.CFrame = targetVfx:IsA("BasePart") and targetVfx.CFrame or targetVfx:GetModelCFrame()
+                -- 1. หยุดตัวละครและล็อคไว้ชั่วคราวกันตกแมพ
+                myHrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                myHrp.Anchored = true 
+
+                local doorCFrame = targetVfx:IsA("BasePart") and targetVfx.CFrame or targetVfx:GetModelCFrame()
+                local backDist = 6 -- เพิ่มระยะถอยอีกนิด
+                local heightOffset = 2 
                 
-                -- จำลองการกด F เพื่อเข้าประตู
-                task.wait(0.2)
+                local targetPosition = doorCFrame.Position - (doorCFrame.LookVector * backDist) + Vector3.new(0, heightOffset, 0)
+                myHrp.CFrame = CFrame.lookAt(targetPosition, doorCFrame.Position)
+                
+                task.wait(0.5) -- รอให้ตำแหน่งนิ่ง
+                
+                -- 2. กด F เพื่อเข้าประตู
                 VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, game)
                 task.wait(0.1)
                 VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+                
+                task.wait(1)
+                myHrp.Anchored = false -- ปลดล็อคตัวละคร
                 break
             end
         end
@@ -160,7 +167,7 @@ local function HandleNextStage(currentRoom, myHrp)
 end
 
 ------------------------------------------------------------------------------------
---- Main Logic
+--- Main Logic (Updated)
 ------------------------------------------------------------------------------------
 local function LogicAuto()
     while State.AutoFarm do
@@ -170,7 +177,6 @@ local function LogicAuto()
             local activationFolder = Workspace:FindFirstChild("Creature") and Workspace.Creature:FindFirstChild("Activation")
             if not activationFolder then return end
 
-            -- 1. ค้นหาตำแหน่งเราใน Activation
             local myHrp, myHum
             for _, folderID in pairs(activationFolder:GetChildren()) do
                 local playerModel = folderID:FindFirstChild(LocalPlayer.Name)
@@ -183,16 +189,20 @@ local function LogicAuto()
 
             if not myHrp or (myHum and myHum.Health <= 0) then return end
 
-            -- 2. ค้นหามอนสเตอร์
+            -- 2. ค้นหามอนสเตอร์และ Chest
             local targetMonster = nil
             local monstersLeft = 0
             
             for _, folderID in pairs(activationFolder:GetChildren()) do
                 for _, child in pairs(folderID:GetChildren()) do
-                    if child.Name:match("Monster%d+") or child.Name:match("EliteMonster%d+") or child.Name:match("Boss%d+") or child.Name:match("Chest%d+") then 
+                    local name = child.Name:lower()
+                    -- เช็คทั้ง Monster, Boss และ Chest
+                    if name:find("monster") or name:find("boss") or name:find("chest") then 
                         local hum = child:FindFirstChild("Humanoid")
                         local mHrp = child:FindFirstChild("HumanoidRootPart")
-                        if hum and hum.Health > 0 and mHrp then
+                        
+                        -- ถ้าเป็น Chest อาจไม่มี Humanoid ให้เช็คแค่ mHrp
+                        if mHrp and (not hum or hum.Health > 0) then
                             targetMonster = child
                             monstersLeft = monstersLeft + 1
                         end
@@ -202,46 +212,36 @@ local function LogicAuto()
 
             -- 3. ระบบตัดสินใจ
             if targetMonster then
-                -- -- มีมอนสเตอร์: หมุนรอบตัว (Orbit)
-                -- local mHrp = targetMonster.HumanoidRootPart
-                -- degree = (degree + orbitSpeed) % 360
-                -- local rad = math.rad(degree)
+                local mHrp = targetMonster:FindFirstChild("HumanoidRootPart")
+                if mHrp then
+                    local enemyPos = mHrp.Position
+                    local heightAbove = 10 
+                    local targetPosition = enemyPos + Vector3.new(0, heightAbove, 0)
 
-                -- local targetPos = Vector3.new(
-                --     mHrp.Position.X + math.cos(rad) * orbitDistance,
-                --     myHrp.Position.Y,
-                --     mHrp.Position.Z + math.sin(rad) * orbitDistance
-                -- )
-
-                -- myHrp.CFrame = CFrame.lookAt(targetPos, mHrp.Position)
-                
-                -- -- สั่งโจมตี (ใช้ task.spawn เพื่อไม่ให้ขัดจังหวะการหมุน)
-                -- task.spawn(AutoAttack, targetMonster, mHrp.Position)
-                -- มีมอนสเตอร์: วาร์ปไปยืนด้านหน้า (ไม่ต้องหมุน)
-                local mHrp = targetMonster.HumanoidRootPart
-                local enemyPos = mHrp.Position
-                local myGroundY = myHrp.Position.Y 
-
-                -- คำนวณจุดที่จะไปยืน (ห่างจากศัตรูออกมา 5 หน่วยในแนวราบ)
-                -- ใช้ CFrame.lookAt เพื่อให้ตัวละครหันหน้าไปหาศัตรูเสมอ
-                local targetPosition = Vector3.new(enemyPos.X, myGroundY, enemyPos.Z) + (mHrp.CFrame.LookVector * 5)
-                
-                myHrp.CFrame = CFrame.lookAt(targetPosition, Vector3.new(enemyPos.X, myGroundY, enemyPos.Z))
-                
-                -- สั่งโจมตี
-                task.spawn(AutoAttack, targetMonster, enemyPos)
+                    myHrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                    myHrp.CFrame = CFrame.lookAt(targetPosition, enemyPos)
+                    
+                    -- เรียกฟังก์ชันตี (ซึ่งตอนนี้กดค้างไว้)
+                    AutoAttack(targetMonster)
+                end
             elseif monstersLeft == 0 then
-                -- มอนสเตอร์หมด: เข้าประตูไปห้องถัดไป
+                -- ปล่อยปุ่มเมาส์เมื่อไม่มีมอนสเตอร์
+                VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+                
+                myHrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+
                 local currentRoom = GetCurrentRoom(myHrp)
                 if currentRoom then
                     HandleNextStage(currentRoom, myHrp)
                 end
-                task.wait(0.5)
+                task.wait(1) 
             end
         end)
         
-        RunService.Heartbeat:Wait() -- ใช้ความเร็วตาม Frame rate เพื่อความลื่นไหล
+        RunService.Heartbeat:Wait()
     end
+    -- ปล่อยปุ่มเมาส์หากปิดสคริปต์
+    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
 end
 ------------------------------------------------------------------------------------
 ---
@@ -255,7 +255,7 @@ local AutoTab = Window:Tab({
 
 AutoTab:Toggle({
 	Title = "Auto Kill",
-    Desc = "Automatically kill all monster",
+    -- Desc = "Automatically kill all monster",
 	Callback = function(val)
 		State.AutoFarm = val;
 		if val then
@@ -263,3 +263,5 @@ AutoTab:Toggle({
 		end;
 	end
 });
+
+Window:SelectTab(1);
