@@ -1036,10 +1036,6 @@ local function LogicMegaBoss()
 
                 task.wait(0.1)
             end
-
-            -- 3. จบภารกิจ: วาปกลับโซนเดิม
-            State.MegaBossTarget = nil
-            State.MegaBossSession.Active = false
             
             Reliable:FireServer("Zone Teleport", { originalZone })
             task.wait(5) -- รอโหลดแมพกลับ
@@ -1047,6 +1043,9 @@ local function LogicMegaBoss()
                 ApplyVaultEquipBest(State.SelectedEquipBestFarm)
             end
             EnemyDropdown:Refresh(RefreshEnemyData())
+            -- 3. จบภารกิจ: วาปกลับโซนเดิม
+            State.MegaBossTarget = nil
+            State.MegaBossSession.Active = false
         end
 
         task.wait(1) -- เช็คทุก 1 วินาทีถ้าไม่มีบอส
