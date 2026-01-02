@@ -40,17 +40,26 @@ local function HandleNextStage(currentRoom, myHrp)
         if not door:FindFirstChild("UnlockDoor") then
             local targetVfx = door:FindFirstChild("UnlockVfx")
             if targetVfx then
+                -- 1. หยุดตัวละครและล็อคไว้ชั่วคราวกันตกแมพ
                 myHrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
                 myHrp.Anchored = true 
+
                 local doorCFrame = targetVfx:IsA("BasePart") and targetVfx.CFrame or targetVfx:GetModelCFrame()
-                local targetPosition = doorCFrame.Position - (doorCFrame.LookVector * 6) + Vector3.new(0, 2, 0)
+                local backDist = 6 -- เพิ่มระยะถอยอีกนิด
+                local heightOffset = 2 
+                
+                local targetPosition = doorCFrame.Position - (doorCFrame.LookVector * backDist) + Vector3.new(0, heightOffset, 0)
                 myHrp.CFrame = CFrame.lookAt(targetPosition, doorCFrame.Position)
-                task.wait(0.5)
+                
+                task.wait(0.5) -- รอให้ตำแหน่งนิ่ง
+                
+                -- 2. กด F เพื่อเข้าประตู
                 VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, game)
                 task.wait(0.1)
                 VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+                
                 task.wait(1)
-                myHrp.Anchored = false 
+                myHrp.Anchored = false -- ปลดล็อคตัวละคร
                 break
             end
         end
@@ -122,3 +131,54 @@ end
 
 -- สั่งเริ่มงานทันที
 task.spawn(StartAutoFarm)
+
+_G.Ignore = {}
+	_G.Settings = {
+		Players = {
+			["Ignore Me"] = true,
+			["Ignore Others"] = true,
+			["Ignore Tools"] = true
+		},
+		Meshes = {
+			NoMesh = false,
+			NoTexture = false,
+			Destroy = false
+		},
+		Images = {
+			Invisible = true,
+			Destroy = false
+		},
+		Explosions = {
+			Smaller = true,
+			Invisible = false, -- Not for PVP games
+			Destroy = false -- Not for PVP games
+		},
+		Particles = {
+			Invisible = true,
+			Destroy = false
+		},
+		TextLabels = {
+			LowerQuality = true,
+			Invisible = false,
+			Destroy = false
+		},
+		MeshParts = {
+			LowerQuality = true,
+			Invisible = false,
+			NoTexture = false,
+			NoMesh = false,
+			Destroy = false
+		},
+		Other = {
+			["FPS Cap"] = 360, -- true to uncap
+			["No Camera Effects"] = true,
+			["No Clothes"] = true,
+			["Low Water Graphics"] = true,
+			["No Shadows"] = true,
+			["Low Rendering"] = true,
+			["Low Quality Parts"] = true,
+			["Low Quality Models"] = true,
+			["Reset Materials"] = true,
+		}
+	}
+	loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/components/boost-fps.lua"))()
