@@ -13,32 +13,7 @@ end
 ------------------------------------------------------------------------------------
 --- Color
 ------------------------------------------------------------------------------------
-local Purple    = Color3.fromHex("#7775F2")
-local Yellow    = Color3.fromHex("#ECA201")
-local Green     = Color3.fromHex("#10C550")
-local Grey      = Color3.fromHex("#83889E")
-local Blue      = Color3.fromHex("#257AF7")
-local Red       = Color3.fromHex("#EF4F1D")
-
-local Common    = Color3.fromHex("#BCC1C5") -- เทาอ่อน (ทั่วไป)
-local Rare      = Color3.fromHex("#3692FF") -- ฟ้าสดใส (หายาก)
-local Epic      = Color3.fromHex("#9D5CFF") -- ม่วงเข้ม (เอปิก)
-local Legendary = Color3.fromHex("#FFAC38") -- ส้มทอง (ตำนาน)
 local Mythic    = Color3.fromHex("#FF3B3B") -- แดงเพลิง (มายา)
-local Divine    = Color3.fromHex("#FFD700") -- ทองสว่าง (เทพเจ้า)
-local Special   = Color3.fromHex("#00FFC3") -- เขียวมิ้นท์สว่าง (พิเศษ)
-
-local Success = Color3.fromHex("#27E181") -- เขียวสว่าง (สำเร็จ)
-local Warning = Color3.fromHex("#F7D547") -- เหลืองอำพัน (เตือน)
-local Error   = Color3.fromHex("#FF4D4D") -- แดงสว่าง (ผิดพลาด)
-local Info    = Color3.fromHex("#00D1FF") -- ฟ้าอ่อน (ข้อมูล)
-local Neutral = Color3.fromHex("#E0E0E0") -- ขาวนวล (ปกติ)
-
-local NeonPink   = Color3.fromHex("#FF00D4")
-local NeonBlue   = Color3.fromHex("#00F0FF")
-local NeonGreen  = Color3.fromHex("#ADFF2F")
-local SoftPurple = Color3.fromHex("#C3B1E1")
-local DeepSea    = Color3.fromHex("#124076")
 ------------------------------------------------------------------------------------
 --- Game
 ------------------------------------------------------------------------------------
@@ -99,9 +74,9 @@ local State = {
     AutoFarm = false,
 };
 
--- Window:OnDestroy(function()
--- 	State.AutoFarm = false;
--- end);
+Window:OnDestroy(function()
+	State.AutoFarm = false;
+end);
 
 ------------------------------------------------------------------------------------
 --- Helper Functions
