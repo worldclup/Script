@@ -1,22 +1,30 @@
--- [[ 1. ตั้งค่าพื้นฐานและการโหลดเกม ]]
+-- [[ 1. ระบบ Queue on Teleport (ให้ดึงตัวเองมารันใหม่) ]]
+local queue_on_teleport = (syn and syn.queue_on_teleport) or queue_on_teleport or (fluxus and fluxus.queue_on_teleport)
+if queue_on_teleport then
+    queue_on_teleport([[loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/dungeon-hunter/new-main.lua", true))()]])
+end
+
+-- [[ 2. รอโหลดเกม ]]
 if not game:IsLoaded() then game.Loaded:Wait() end
 
+-- [[ 3. ตั้งค่าเบื้องต้น ]]
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Workspace = game:GetService("Workspace")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local RunService = game:GetService("RunService")
 
--- [[ 2. ระบบรันต่อเนื่องเมื่อเปลี่ยนด่าน ]]
-local queue_on_teleport = (syn and syn.queue_on_teleport) or queue_on_teleport or (fluxus and fluxus.queue_on_teleport)
-if queue_on_teleport then
-    -- ใส่ลิงก์ Raw ของสคริปต์คุณจาก GitHub เพื่อให้มันดึงตัวเองมารันใหม่ทุกด่าน
-    queue_on_teleport([[loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/dungeon-hunter/new-main.lua", true))()]])
-end
+-- บังคับให้เป็น True ตั้งแต่แรก (เพราะไม่มีปุ่มกดแล้ว)
+local State = {
+    AutoFarm = true, 
+}
 
--- [[ 3. ฟังก์ชันช่วยเหลือกดเข้าประตู (HandleNextStage) ]]
+------------------------------------------------------------------------------------
+--- ฟังก์ชันเสริม (ลอกมาจากตัวเดิมของคุณ)
+------------------------------------------------------------------------------------
+
 local function GetCurrentRoom(myHrp)
-    local sandbox = Workspace:FindFirstChild("SandboxPlayFolder")
+    local sandbox = workspace:FindFirstChild("SandboxPlayFolder")
     if not sandbox or not myHrp then return nil end
     local closestRoom = nil
     local shortestDistance = math.huge
@@ -33,47 +41,70 @@ local function GetCurrentRoom(myHrp)
     return closestRoom
 end
 
+local function AutoAttack(targetMonster)
+    VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+    local keys = {Enum.KeyCode.Q, Enum.KeyCode.E, Enum.KeyCode.R}
+    for _, key in ipairs(keys) do
+        VirtualInputManager:SendKeyEvent(true, key, false, game)
+        VirtualInputManager:SendKeyEvent(false, key, false, game)
+    end
+end
+
 local function HandleNextStage(currentRoom, myHrp)
     local voteDoorFolder = currentRoom:FindFirstChild("VoteDoor")
     if not voteDoorFolder then return end
+
     for _, door in pairs(voteDoorFolder:GetChildren()) do
         if not door:FindFirstChild("UnlockDoor") then
             local targetVfx = door:FindFirstChild("UnlockVfx")
             if targetVfx then
-                -- 1. หยุดตัวละครและล็อคไว้ชั่วคราวกันตกแมพ
+                -- 1. เคลียร์แรงเหวี่ยงและล็อคตัวละคร
                 myHrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
                 myHrp.Anchored = true 
 
+                -- 2. ดึงค่า CFrame ของประตูมาใช้
                 local doorCFrame = targetVfx:IsA("BasePart") and targetVfx.CFrame or targetVfx:GetModelCFrame()
-                local backDist = 6 -- เพิ่มระยะถอยอีกนิด
-                local heightOffset = 2 
+                local doorPos = doorCFrame.Position
                 
-                local targetPosition = doorCFrame.Position - (doorCFrame.LookVector * backDist) + Vector3.new(0, heightOffset, 0)
-                myHrp.CFrame = CFrame.lookAt(targetPosition, doorCFrame.Position)
+                -- [[ จุดที่ปรับปรุง: วาร์ปไปข้างหน้าประตูตรงๆ ]]
+                -- เราใช้ doorCFrame.LookVector เพื่อหาทิศทาง "ด้านหน้า" ของ Object ประตู
+                -- ระยะห่าง 5-6 หน่วยมักจะเป็นระยะที่ปุ่ม F แสดงผลพอดี
+                local forwardDist = 6 
+                local heightOffset = 2
                 
-                task.wait(0.5) -- รอให้ตำแหน่งนิ่ง
+                -- สูตร: ตำแหน่งประตู + (ทิศทางหน้าประตู * ระยะห่าง)
+                local targetPosition = doorPos + (doorCFrame.LookVector * forwardDist) + Vector3.new(0, heightOffset, 0)
                 
-                -- 2. กด F เพื่อเข้าประตู
-                VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, game)
-                task.wait(0.1)
-                VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+                -- วาร์ปและหันหน้าเข้าหาประตู
+                myHrp.CFrame = CFrame.lookAt(targetPosition, doorPos)
                 
-                task.wait(1)
-                myHrp.Anchored = false -- ปลดล็อคตัวละคร
+                task.wait(0.5) -- รอให้นิ่ง
+                
+                -- 3. กด F รัวนิดนึงเพื่อความชัวร์
+                for i = 1, 3 do
+                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, game)
+                    task.wait(0.1)
+                    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+                    task.wait(0.1)
+                end
+                
+                task.wait(1) -- รอโหลดแมพ
+                myHrp.Anchored = false 
                 break
             end
         end
     end
 end
-
--- [[ 4. ลูปหลักการฟาร์ม (LogicAuto) ]]
-local function StartAutoFarm()
-    while true do
+------------------------------------------------------------------------------------
+--- ลูปหลัก (LogicAuto)
+------------------------------------------------------------------------------------
+local function LogicAuto()
+    print("DEK DEV HUB: Auto Farm Started (No UI Mode)")
+    while State.AutoFarm do
         pcall(function()
             local activationFolder = Workspace:FindFirstChild("Creature") and Workspace.Creature:FindFirstChild("Activation")
             if not activationFolder then return end
 
-            -- ค้นหาตัวละครเรา
             local myHrp, myHum
             for _, folderID in pairs(activationFolder:GetChildren()) do
                 local playerModel = folderID:FindFirstChild(LocalPlayer.Name)
@@ -86,9 +117,9 @@ local function StartAutoFarm()
 
             if not myHrp or (myHum and myHum.Health <= 0) then return end
 
-            -- ค้นหาเป้าหมาย
             local targetMonster = nil
             local monstersLeft = 0
+            
             for _, folderID in pairs(activationFolder:GetChildren()) do
                 for _, child in pairs(folderID:GetChildren()) do
                     local name = child.Name:lower()
@@ -103,25 +134,21 @@ local function StartAutoFarm()
                 end
             end
 
-            -- การตัดสินใจ
             if targetMonster then
                 local mHrp = targetMonster:FindFirstChild("HumanoidRootPart")
-                local targetPosition = mHrp.Position + Vector3.new(0, 15, 0) -- ลอยสูง 15 หน่วย
-                
-                myHrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-                myHrp.CFrame = CFrame.lookAt(targetPosition, mHrp.Position)
-                
-                -- โจมตีและกดสกิลรัวๆ
-                VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 0)
-                for _, key in ipairs({Enum.KeyCode.Q, Enum.KeyCode.E, Enum.KeyCode.R}) do
-                    VirtualInputManager:SendKeyEvent(true, key, false, game)
-                    VirtualInputManager:SendKeyEvent(false, key, false, game)
+                if mHrp then
+                    local targetPosition = mHrp.Position + Vector3.new(0, 15, 0)
+                    myHrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                    myHrp.CFrame = CFrame.lookAt(targetPosition, mHrp.Position)
+                    AutoAttack(targetMonster)
                 end
             elseif monstersLeft == 0 then
                 VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+                myHrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
                 local currentRoom = GetCurrentRoom(myHrp)
                 if currentRoom then
                     HandleNextStage(currentRoom, myHrp)
+                    task.wait(1) 
                 end
             end
         end)
@@ -129,56 +156,5 @@ local function StartAutoFarm()
     end
 end
 
--- สั่งเริ่มงานทันที
-task.spawn(StartAutoFarm)
-
-_G.Ignore = {}
-	_G.Settings = {
-		Players = {
-			["Ignore Me"] = true,
-			["Ignore Others"] = true,
-			["Ignore Tools"] = true
-		},
-		Meshes = {
-			NoMesh = false,
-			NoTexture = false,
-			Destroy = false
-		},
-		Images = {
-			Invisible = true,
-			Destroy = false
-		},
-		Explosions = {
-			Smaller = true,
-			Invisible = false, -- Not for PVP games
-			Destroy = false -- Not for PVP games
-		},
-		Particles = {
-			Invisible = true,
-			Destroy = false
-		},
-		TextLabels = {
-			LowerQuality = true,
-			Invisible = false,
-			Destroy = false
-		},
-		MeshParts = {
-			LowerQuality = true,
-			Invisible = false,
-			NoTexture = false,
-			NoMesh = false,
-			Destroy = false
-		},
-		Other = {
-			["FPS Cap"] = 360, -- true to uncap
-			["No Camera Effects"] = true,
-			["No Clothes"] = true,
-			["Low Water Graphics"] = true,
-			["No Shadows"] = true,
-			["Low Rendering"] = true,
-			["Low Quality Parts"] = true,
-			["Low Quality Models"] = true,
-			["Reset Materials"] = true,
-		}
-	}
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/components/boost-fps.lua"))()
+-- [[ เริ่มต้นทำงานทันที ]]
+task.spawn(LogicAuto)
