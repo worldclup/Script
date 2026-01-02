@@ -1,15 +1,15 @@
--- local queue_on_teleport = (syn and syn.queue_on_teleport) or queue_on_teleport or (fluxus and fluxus.queue_on_teleport)
+local queue_on_teleport = (syn and syn.queue_on_teleport) or queue_on_teleport or (fluxus and fluxus.queue_on_teleport)
 
--- if queue_on_teleport then
---     -- ใส่ Link สคริปต์ของคุณที่นี่ (ถ้าใช้ GitHub/Pastebin) 
---     -- หรือถ้าเป็นโค้ดสด ให้ใช้การเก็บโค้ดลงไฟล์แล้วรันใหม่
---     queue_on_teleport([[loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/dungeon-hunter/main.lua", true))()]])
--- end
+if queue_on_teleport then
+    -- ใส่ Link สคริปต์ของคุณที่นี่ (ถ้าใช้ GitHub/Pastebin) 
+    -- หรือถ้าเป็นโค้ดสด ให้ใช้การเก็บโค้ดลงไฟล์แล้วรันใหม่
+    queue_on_teleport([[loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/dungeon-hunter/main.lua", true))()]])
+end
 
--- -- 2. รอจนกว่าเกมจะโหลดเสร็จสมบูรณ์
--- if not game:IsLoaded() then
---     game.Loaded:Wait()
--- end
+-- 2. รอจนกว่าเกมจะโหลดเสร็จสมบูรณ์
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
 ------------------------------------------------------------------------------------
 --- Color
 ------------------------------------------------------------------------------------
