@@ -144,6 +144,7 @@ local function LogicAuto()
             -- [เพิ่มใหม่] 4. ถ้าไม่เจอมอนสเตอร์ และเปิด Auto Start (Lobby Logic)
             ------------------------------------------------------------------------------------
             if State.AutoStart and #enemies == 0 then
+                task.wait(5) -- รอโหลดแมพสักครู่เพื่อไม่ให้ Remote ทำงานซ้ำซ้อน
                 game:GetService("ReplicatedStorage"):WaitForChild("InventoryComm"):WaitForChild("RF"):WaitForChild("EquipBestWeapons"):InvokeServer()
 
 
