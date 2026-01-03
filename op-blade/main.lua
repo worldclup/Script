@@ -144,7 +144,7 @@ local function LogicAuto()
             -- [เพิ่มใหม่] 4. ถ้าไม่เจอมอนสเตอร์ และเปิด Auto Start (Lobby Logic)
             ------------------------------------------------------------------------------------
             if State.AutoStart and #enemies == 0 then
-                task.wait(5) -- รอโหลดแมพสักครู่เพื่อไม่ให้ Remote ทำงานซ้ำซ้อน
+                task.wait(10) -- รอโหลดแมพสักครู่เพื่อไม่ให้ Remote ทำงานซ้ำซ้อน
                 game:GetService("ReplicatedStorage"):WaitForChild("InventoryComm"):WaitForChild("RF"):WaitForChild("EquipBestWeapons"):InvokeServer()
 
 
@@ -159,8 +159,6 @@ local function LogicAuto()
                 -- ส่ง Remote อันที่สอง (Enter)
                 local enterRemote = netPath:WaitForChild("RE/Arena_PlayerEnter")
                 enterRemote:FireServer()
-                
-                task.wait(5) -- รอโหลดแมพสักครู่เพื่อไม่ให้ Remote ทำงานซ้ำซ้อน
             end
         end
     end
@@ -278,13 +276,10 @@ task.spawn(function()
         -- เงื่อนไข: ต้องไม่เจอมอนสเตอร์ (อยู่ Lobby) และ เงินถึง
         local enemies = workspace.GlobalSpriteAnchor:GetChildren()
         if State.AutoRebirth then
-            game:GetService("ReplicatedStorage"):WaitForChild("InventoryComm"):WaitForChild("RF"):WaitForChild("EquipBestWeapons"):InvokeServer()
-            -- if #enemies == 0 and currentGold >= nextCost then
-            --     print("Rebirthing...")
-            --     -- ใส่ Remote สำหรับ Rebirth ของคุณที่นี่
-            --     -- game:GetService("ReplicatedStorage").RemotePath.Arena_RebirthRequest:FireServer()
-            -- end
-            game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net"):WaitForChild("RE/Rebirth_Request"):FireServer()
+            if #enemies == 0 and currentGold >= nextCost then
+                game:GetService("ReplicatedStorage"):WaitForChild("InventoryComm"):WaitForChild("RF"):WaitForChild("EquipBestWeapons"):InvokeServer()
+                game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net"):WaitForChild("RE/Rebirth_Request"):FireServer()
+            end
 
         end
     end
