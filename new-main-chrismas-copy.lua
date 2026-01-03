@@ -227,6 +227,7 @@ end
 
 Window:OnDestroy(function()
 	State.AutoFarm = false;
+    State.SelectedEnemy = {};
 	State.AutoDungeon = false;
     State.AutoUseKey = false;
     State.DungeonRoom = 50;
@@ -508,8 +509,8 @@ local function LogicAutoFarm()
 
                 -- วนลูปตามชื่อมอนสเตอร์ทั้งหมดที่เลือกไว้ใน Dropdown
                 for _, targetName in pairs(State.SelectedEnemy) do 
-                    if GlobalEnemyMap[targetName] then
-                        for _, enemyObj in ipairs(GlobalEnemyMap[targetName] or {}) do
+                    if GlobalEnemyMap[targetName.Value] then
+                        for _, enemyObj in ipairs(GlobalEnemyMap[targetName.Value] or {}) do
                             if enemyObj.Alive == true and enemyObj.Data then
                                 local dst = (hrp.Position - enemyObj.Data.CFrame.Position).Magnitude;
                                 if dst < minDst then 
