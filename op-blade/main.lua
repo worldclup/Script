@@ -25,13 +25,13 @@ end)
 ------------------------------------------------------------------------------------
 --- Window UI
 ------------------------------------------------------------------------------------
--- _G.Settings = {
--- 	Desc = {
--- 		Game = "OP Blade",
---         Color = Color3.fromHex("#50C878")
--- 	},
--- }
--- loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/components/main.lua"))()
+_G.Settings = {
+	Desc = {
+		Game = "OP Blade",
+        Color = Color3.fromHex("#50C878")
+	},
+}
+loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/components/main.lua"))()
 local UI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
 local Window = UI:CreateWindow({
@@ -262,8 +262,6 @@ local function GetWaveList(mapId)
         end
     end
 
-    print("maxUnlocked: ",maxUnlocked)
-
     -- กรองเอาเฉพาะ Checkpoint ที่เราปลดล็อกถึงแล้วเท่านั้น
     for _, cp in ipairs(standardCheckpoints) do
         if maxUnlocked >= cp then
@@ -296,6 +294,12 @@ AutoTab:Dropdown({
         State.SelectedMap = v.Value
         -- เมื่อเปลี่ยนแมพ ให้ Refresh รายชื่อเวฟทันที
         WaveDropdown:Refresh(GetWaveList(v.Value), true)
+
+        local args = {
+        	v.Value
+        }
+        game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net"):WaitForChild("RE/Map_Select"):FireServer(unpack(args))
+
     end
 })
 
