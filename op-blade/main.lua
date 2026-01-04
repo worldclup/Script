@@ -117,6 +117,34 @@ local function LogicAuto()
             end
         end
 
+        ------------------------------------------------------------------------------------
+        -- 2. ระบบ Auto Loot (เก็บของที่ดรอป) [เพิ่มใหม่]
+        ------------------------------------------------------------------------------------
+        local lootAnchor = workspace:FindFirstChild("LootAnchor")
+        local lootTarget = nil
+        local shortestLootDist = math.huge
+
+        if lootAnchor then
+            for _, loot in pairs(lootAnchor:GetChildren()) do
+                -- ตรวจสอบตำแหน่งของของที่ดรอป (LootAttachment หรือ BasePart)
+                local lootPos = (loot:IsA("Attachment") and loot.WorldPosition) or (loot:IsA("BasePart") and loot.Position)
+                
+                if lootPos then
+                    local dist = (rootPart.Position - lootPos).Magnitude
+                    if dist < shortestLootDist then
+                        shortestLootDist = dist
+                        lootTarget = lootPos
+                    end
+                end
+            end
+        end
+
+        -- ถ้าเจอของดรอป ให้วาร์ปไปเก็บก่อน
+        if lootTarget then
+            rootPart.CFrame = CFrame.new(lootTarget)
+            task.wait(0.1) -- ดีเลย์เล็กน้อยเพื่อให้ระบบเกมรับรู้การเก็บของ
+        end
+
         -- 2. ค้นหามอนสเตอร์ (อ้างอิงจาก GlobalSpriteAnchor)
         local enemies = workspace.GlobalSpriteAnchor:GetChildren()
         local monsterTarget = nil
