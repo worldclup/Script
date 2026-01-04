@@ -2,6 +2,8 @@
 --- Color
 ------------------------------------------------------------------------------------
 local Mythic    = Color3.fromHex("#FF3B3B") -- แดงเพลิง (มายา)
+local Green     = Color3.fromHex("#10C550")
+local Grey      = Color3.fromHex("#83889E")
 ------------------------------------------------------------------------------------
 --- Game
 ------------------------------------------------------------------------------------
@@ -10,6 +12,15 @@ local LocalPlayer = Players.LocalPlayer;
 local Workspace = game:GetService("Workspace");
 
 local RebirthConstants = require(game:GetService("ReplicatedStorage").Modules.Constants.RebirthConstants)
+------------------------------------------------------------------------------------
+--- Anti-AFK System
+------------------------------------------------------------------------------------
+local VirtualUser = game:GetService("VirtualUser")
+LocalPlayer.Idled:Connect(function()
+    VirtualUser:CaptureController()
+    VirtualUser:ClickButton2(Vector2.new())
+    warn("Anti-AFK System: Active!") -- แจ้งเตือนใน Console ว่าระบบทำงาน
+end)
 ------------------------------------------------------------------------------------
 --- Window UI
 ------------------------------------------------------------------------------------
@@ -219,8 +230,8 @@ AutoTabGroup:Toggle({
 ------------------------------------------------------------------------------------
 local UpgradeTab = Window:Tab({
     Title = "Upgrade",
-    Icon = "geist:chevron-double-up", -- เปลี่ยน Icon ให้เข้ากับชื่อ
-    IconColor = Mythic,
+    Icon = "geist:chevron-double-up",
+    IconColor = Green,
     IconShape = "Square",
 });
 
@@ -284,5 +295,77 @@ task.spawn(function()
         end
     end
 end)
+----------------------------------------------------------------
+-- FPS BOOST
+----------------------------------------------------------------
+local function BoostFps()
 
+	_G.Ignore = {}
+	_G.Settings = {
+		Players = {
+			["Ignore Me"] = true,
+			["Ignore Others"] = true,
+			["Ignore Tools"] = true
+		},
+		Meshes = {
+			NoMesh = false,
+			NoTexture = false,
+			Destroy = false
+		},
+		Images = {
+			Invisible = true,
+			Destroy = false
+		},
+		Explosions = {
+			Smaller = true,
+			Invisible = false, -- Not for PVP games
+			Destroy = false -- Not for PVP games
+		},
+		Particles = {
+			Invisible = true,
+			Destroy = false
+		},
+		TextLabels = {
+			LowerQuality = true,
+			Invisible = false,
+			Destroy = false
+		},
+		MeshParts = {
+			LowerQuality = true,
+			Invisible = false,
+			NoTexture = false,
+			NoMesh = false,
+			Destroy = false
+		},
+		Other = {
+			["FPS Cap"] = 360, -- true to uncap
+			["No Camera Effects"] = true,
+			["No Clothes"] = true,
+			["Low Water Graphics"] = true,
+			["No Shadows"] = true,
+			["Low Rendering"] = true,
+			["Low Quality Parts"] = true,
+			["Low Quality Models"] = true,
+			["Reset Materials"] = true,
+		}
+	}
+	loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/components/boost-fps.lua"))()
+end
+------------------------------------------------------------------------------------
+--- Window UI - Upgrade Tab
+------------------------------------------------------------------------------------
+local SettingTab = Window:Tab({
+    Title = "Setting",
+    Icon = "settings-2",
+    IconColor = Grey,
+    IconShape = "Square",
+});
+
+SettingTab:Button({
+	Title = "Boost FPS (Low Graphics)",
+	Icon = "rocket",
+	Callback = function()
+		BoostFps()
+	end
+})
 Window:SelectTab(1);
