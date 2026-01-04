@@ -24,7 +24,13 @@ end)
 ------------------------------------------------------------------------------------
 --- Window UI
 ------------------------------------------------------------------------------------
--- loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/components/loading-aw.lua"))()
+_G.Settings = {
+	Desc = {
+		Game = "OP Blade",
+        Color = Color3.fromHex("#50C878")
+	},
+}
+loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/components/main.lua"))()
 local UI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
 local Window = UI:CreateWindow({
