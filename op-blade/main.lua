@@ -28,7 +28,7 @@ end)
 _G.Settings = {
 	Desc = {
 		Game = "OP Blade",
-        Color = Color3.fromHex("#50C878")
+        Color = Color3.fromHex("#FF3B3B")
 	},
 }
 loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/components/main.lua"))()
