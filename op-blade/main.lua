@@ -12,6 +12,7 @@ local LocalPlayer = Players.LocalPlayer;
 local Workspace = game:GetService("Workspace");
 
 local RebirthConstants = require(game:GetService("ReplicatedStorage").Modules.Constants.RebirthConstants)
+local MapConstants = require(game:GetService("ReplicatedStorage").Modules.Constants.MapConstants)
 ------------------------------------------------------------------------------------
 --- Anti-AFK System
 ------------------------------------------------------------------------------------
@@ -67,8 +68,10 @@ local State = {
     AutoStart = false,
     AutoFarm = false,
     AutoLeave = false,
+    AutoRebirth = false,
     Wave = 5000,
-    AutoRebirth = false
+    SelectedMap = "forest",
+    SelectedWave = 1,
 };
 
 Window:OnDestroy(function()
@@ -77,23 +80,28 @@ Window:OnDestroy(function()
     State.AutoLeave = false;
     State.Wave = 5000;
     State.AutoRebirth = false;
+    State.SelectedMap = "forest";
+    State.SelectedWave = 1;
 end);
 
 ------------------------------------------------------------------------------------
 --- Main Logic (Updated with Auto Loot)
 ------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------
+--- Main Logic (Updated with Set Starting Wave)
+------------------------------------------------------------------------------------
 local function LogicAuto()
     while State.AutoFarm do
         if Window.Destroyed then break end
         task.wait(0.2)
+        
         local myChar = workspace:FindFirstChild(LocalPlayer.Name)
         local rootPart = myChar and myChar:FindFirstChild("HumanoidRootPart")
-        if not rootPart then continue end
+        if not rootPart then  end
 
-        ------------------------------------------------------------------------------------
         -- 1. ตรวจสอบ Auto Leave (เช็ค Wave)
-        ------------------------------------------------------------------------------------
         if State.AutoLeave then
+            -- แก้ไขการดึงค่า Wave จาก UI ให้ถูกต้องตาม Hierarchy
             local success, currentWaveStr = pcall(function()
                 return LocalPlayer.PlayerGui.DifficultyDisplayUI.RoactTree.WaveDisplay.Content.Value.ContentText
             end)
@@ -103,45 +111,19 @@ local function LogicAuto()
                 if currentWave and currentWave >= State.Wave then
                     local leaveRemote = game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net"):WaitForChild("RE/Arena_LeaveRequest")
                     leaveRemote:FireServer()
-                    -- ไม่ต้องปิด AutoFarm เพื่อให้มันทำงานต่อเมื่อกลับถึง Lobby (จะไปเข้า Auto Start ต่อ)
-                    task.wait(5) -- รอให้ระบบวาร์ปออก
-                    continue 
+                    task.wait(5)
+                     
                 end
             end
         end
 
-        ------------------------------------------------------------------------------------
-        -- 2. ตรวจสอบ Loot (เก็บของสำคัญที่สุด)
-        ------------------------------------------------------------------------------------
-        local lootTarget = nil
-        local shortestLootDist = math.huge
-        for _, loot in pairs(workspace.LootAnchor:GetChildren()) do
-            if loot.Name:find("Loot") then
-                local lootPos = (loot:IsA("Attachment") and loot.WorldPosition) or (loot:IsA("BasePart") and loot.Position)
-                if lootPos then
-                    local dist = (rootPart.Position - lootPos).Magnitude
-                    if dist < shortestLootDist then
-                        shortestLootDist = dist
-                        lootTarget = lootPos
-                    end
-                end
-            end
-        end
-
-        if lootTarget then
-            rootPart.CFrame = CFrame.new(lootTarget + Vector3.new(0, 1, 0))
-            task.wait(0.1)
-            continue 
-        end
-
-        ------------------------------------------------------------------------------------
-        -- 3. ค้นหามอนสเตอร์
-        ------------------------------------------------------------------------------------
+        -- 2. ค้นหามอนสเตอร์ (อ้างอิงจาก GlobalSpriteAnchor)
         local enemies = workspace.GlobalSpriteAnchor:GetChildren()
         local monsterTarget = nil
         local shortestMonsterDist = math.huge
 
         for _, enemy in pairs(enemies) do
+            -- ตรวจสอบทั้ง Attachment และ Billboard
             if enemy.Name == "EnemyBillboard" or enemy.Name == "EnemyAttachment" or enemy:IsA("Attachment") then
                 local monsterPos = enemy:IsA("Attachment") and enemy.WorldPosition or (enemy:IsA("BasePart") and enemy.Position)
                 if monsterPos then
@@ -157,28 +139,102 @@ local function LogicAuto()
         if monsterTarget then
             rootPart.CFrame = CFrame.new(monsterTarget + Vector3.new(0, 5, 0))
         else
-            ------------------------------------------------------------------------------------
-            -- [เพิ่มใหม่] 4. ถ้าไม่เจอมอนสเตอร์ และเปิด Auto Start (Lobby Logic)
-            ------------------------------------------------------------------------------------
+            -- 3. ถ้าไม่เจอมอนสเตอร์ และเปิด Auto Start (Lobby Logic)
             if State.AutoStart and #enemies == 0 then
-                task.wait(10) -- รอโหลดแมพสักครู่เพื่อไม่ให้ Remote ทำงานซ้ำซ้อน
-                game:GetService("ReplicatedStorage"):WaitForChild("InventoryComm"):WaitForChild("RF"):WaitForChild("EquipBestWeapons"):InvokeServer()
-
-
+                task.wait(10)
+                local args = {
+                	true
+                }
+                game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net"):WaitForChild("RE/Map_ToggleMobSpeedBoost"):FireServer(unpack(args))
+                task.wait(2)
+                
                 local netPath = game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net")
                 
-                -- ส่ง Remote อันแรก (Teleport)
+                -- ขั้นตอนที่ 1: วาร์ปไปแมพที่เลือก
                 local teleportRemote = netPath:WaitForChild("RE/Arena_TeleportToArena")
-                teleportRemote:FireServer()
+                teleportRemote:FireServer(State.SelectedMap)
                 
-                task.wait(1) -- ดีเลย์ 1 วินาทีตามที่ต้องการ
+                task.wait(1)
                 
-                -- ส่ง Remote อันที่สอง (Enter)
+                -- ขั้นตอนที่ 2: ตั้งค่า Wave ที่เลือกจาก Dropdown
+                local setWaveRemote = netPath:WaitForChild("RE/Arena_SetStartingWave")
+                setWaveRemote:FireServer(State.SelectedWave)
+                
+                task.wait(0.5)
+                
+                -- ขั้นตอนที่ 3: กดยืนยันเข้าเล่น
                 local enterRemote = netPath:WaitForChild("RE/Arena_PlayerEnter")
                 enterRemote:FireServer()
+                
+                task.wait(5) -- รอโหลดแมพ
             end
         end
     end
+end
+------------------------------------------------------------------------------------
+---
+------------------------------------------------------------------------------------
+local function GetMapList()
+    local mapList = {}
+    local allMaps = MapConstants.getAllMaps()
+    
+    -- สร้างตารางสำหรับ Dropdown
+    for id, data in pairs(allMaps) do
+        table.insert(mapList, {
+            Title = data.name, -- ชื่อที่แสดงใน UI
+            Value = id,        -- ค่า id ที่ส่งเข้า Remote (เช่น "forest", "winter")
+            Order = data.order or 0
+        })
+    end
+    
+    -- เรียงลำดับแมพตาม Order ในเกม
+    table.sort(mapList, function(a, b) return a.Order < b.Order end)
+    return mapList
+end
+------------------------------------------------------------------------------------
+---
+------------------------------------------------------------------------------------
+local function GetWaveList(mapId)
+
+    if not mapId then mapId = "forest" end
+    local waveList = {}
+    -- รายการ Wave ที่เกมอนุญาตให้เลือกได้ (ล็อคตามหน้า UI เกม)
+    local standardCheckpoints = {1, 50, 100, 300, 1000, 5000}
+    
+    local success, unlockedWaves = pcall(function()
+        local getWaveRF = game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net"):WaitForChild("RF/Arena_GetWaveCheckpoints")
+        return getWaveRF:InvokeServer(mapId)
+    end)
+
+    local maxUnlocked = 1 -- ค่าเริ่มต้นคือ Wave 1
+    
+    if success and type(unlockedWaves) == "table" then
+        -- หาค่า Wave สูงสุดที่ปลดล็อกแล้วจากข้อมูลใน Table
+        for _, innerValue in pairs(unlockedWaves) do
+            local val = nil
+            if type(innerValue) == "number" then
+                val = innerValue
+            end
+            
+            if val and val > maxUnlocked then
+                maxUnlocked = val
+            end
+        end
+    end
+
+    print("maxUnlocked: ",maxUnlocked)
+
+    -- กรองเอาเฉพาะ Checkpoint ที่เราปลดล็อกถึงแล้วเท่านั้น
+    for _, cp in ipairs(standardCheckpoints) do
+        if maxUnlocked >= cp then
+            table.insert(waveList, {
+                Title = "Wave " .. tostring(cp),
+                Value = cp
+            })
+        end
+    end
+
+    return waveList
 end
 ------------------------------------------------------------------------------------
 ---
@@ -189,6 +245,30 @@ local AutoTab = Window:Tab({
     IconColor = Mythic,
 	IconShape = "Square",
 });
+local WaveDropdown
+-- Dropdown เลือกแมพ
+AutoTab:Dropdown({
+    Title = "Select Map",
+    Desc = "Choose your destination",
+    Values = GetMapList(), -- เรียกใช้ฟังก์ชันดึงแมพ
+    Value = "Enchanted Forest",
+    Callback = function(v)
+        State.SelectedMap = v.Value
+        -- เมื่อเปลี่ยนแมพ ให้ Refresh รายชื่อเวฟทันที
+        WaveDropdown:Refresh(GetWaveList(v.Value), true)
+    end
+})
+
+-- Dropdown เลือกเวฟ
+WaveDropdown = AutoTab:Dropdown({
+    Title = "Select Starting Wave",
+    Desc = "Choose which wave to begin",
+    Values = GetWaveList(State.SelectedMap), -- ดึงเวฟของแมพปัจจุบัน
+    Value = 1,
+    Callback = function(v)
+        State.SelectedWave = tonumber(v.Value)
+    end
+})
 
 AutoTab:Toggle({
 	Title = "Auto Start",
