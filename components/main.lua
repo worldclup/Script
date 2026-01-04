@@ -78,7 +78,7 @@ local function PlayPortalGreenBlurLoading()
 
     -- 4. CREDIT (มุมซ้ายล่าง - ขอบคุณที่ใส่ให้นะครับ!)
     local Credit = Instance.new("TextLabel")
-    Credit.Text = "Powered by Gemini AI"
+    Credit.Text = "Powered by DEK DEV HUB (Davz)"
     Credit.Font = Enum.Font.GothamMedium
     Credit.TextSize = 10
     Credit.TextColor3 = Color3.fromRGB(255, 255, 255)
