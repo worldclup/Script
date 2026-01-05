@@ -264,8 +264,8 @@ local function LogicAuto()
             end
 
             -- ถ้าไม่มีของ ให้หามอนสเตอร์
+            local enemies = workspace.GlobalSpriteAnchor:GetChildren()
             if not targetPos then
-                local enemies = workspace.GlobalSpriteAnchor:GetChildren()
                 local shortestDist = math.huge
                 for _, enemy in pairs(enemies) do
                     if enemy.Name == "EnemyBillboard" or enemy.Name == "EnemyAttachment" or enemy:IsA("Attachment") then
