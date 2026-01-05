@@ -802,15 +802,15 @@ if inGamemodeZone then
         local function FindFastTarget()
             local closest, minDst = nil, math.huge
             for _, enemy in ipairs(EnemiesFolder:GetChildren()) do
-                local hum = enemy:FindFirstChildOfClass("Humanoid")
-                local root = enemy.PrimaryPart
-                if root and hum and hum.Health > 0 then
-                    local dst = (hrp.Position - root.Position).Magnitude
-                    if dst < minDst then
-                        minDst = dst
+                -- local hum = enemy:FindFirstChildOfClass("Humanoid")
+                -- local root = enemy.PrimaryPart
+                -- if root and hum and hum.Health > 0 then
+                --     local dst = (hrp.Position - root.Position).Magnitude
+                    -- if dst < minDst then
+                        -- minDst = dst
                         closest = enemy
-                    end
-                end
+                    -- end
+                -- end
             end
             return closest
         end
