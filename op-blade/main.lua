@@ -212,7 +212,8 @@ end);
 --     end
 -- end
 local function LogicAuto()
-    local FloatHeight = 5 -- ตั้งค่าความสูงที่ต้องการลอยเหนือเป้าหมาย
+    local FloatOffset = 10 -- ระยะที่อยากให้ลอยสูงจากพื้น (ปรับได้ตามชอบ)
+    local FixedY = nil -- ตัวแปรสำหรับเก็บค่าความสูงที่ล็อคไว้
     
     while State.AutoFarm do
         if Window.Destroyed then break end
@@ -221,100 +222,102 @@ local function LogicAuto()
         local rootPart = myChar and myChar:FindFirstChild("HumanoidRootPart")
         
         if rootPart then
-            -- ตัดความเร็วเพื่อให้นิ่ง (Prevent Fling/Gravity)
+            -- 1. กำหนดค่าความสูงคงที่ครั้งแรก (ล็อคค่า Y ไว้ไม่ให้ไหล)
+            if not FixedY then
+                FixedY = rootPart.Position.Y + FloatOffset
+            end
+
+            -- หยุดแรงฟิสิกส์ทิ้งทั้งหมด
             rootPart.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
             
-            -- 1. ตรวจสอบ Auto Leave
+            -- [ส่วนเช็ค Auto Leave เหมือนเดิม...]
             if State.AutoLeave then
                 local success, currentWaveStr = pcall(function()
                     return LocalPlayer.PlayerGui.DifficultyDisplayUI.RoactTree.WaveDisplay.Content.Value.ContentText
                 end)
                 if success and currentWaveStr and tonumber(currentWaveStr) >= State.Wave then
                     game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net"):WaitForChild("RE/Arena_LeaveRequest"):FireServer()
+                    FixedY = nil -- ล้างค่า Y เมื่อออกจากแมพ
                     task.wait(5)
                 end
             end
 
             ------------------------------------------------------------------------------------
-            -- 2. ระบบ Auto Loot (ลอยเหนือของดรอป)
+            -- 2. ระบบหาเป้าหมาย (Loot หรือ Monster)
             ------------------------------------------------------------------------------------
+            local targetPos = nil
+            
+            -- เช็คของดรอปก่อน
             local lootAnchor = workspace:FindFirstChild("LootAnchor")
-            local lootTargetPos = nil
-            local shortestLootDist = math.huge
-
-            if lootAnchor then
+            if lootAnchor and #lootAnchor:GetChildren() > 0 then
+                local shortestDist = math.huge
                 for _, loot in pairs(lootAnchor:GetChildren()) do
-                    local pos = (loot:IsA("Attachment") and loot.WorldPosition) or (loot:IsA("BasePart") and loot.Position)
-                    if pos then
-                        local dist = (rootPart.Position - pos).Magnitude
-                        if dist < shortestLootDist then
-                            shortestLootDist = dist
-                            lootTargetPos = pos
+                    local p = (loot:IsA("Attachment") and loot.WorldPosition) or (loot:IsA("BasePart") and loot.Position)
+                    if p then
+                        local d = (rootPart.Position - p).Magnitude
+                        if d < shortestDist then
+                            shortestDist = d
+                            targetPos = p
                         end
                     end
                 end
             end
 
-            if lootTargetPos then
-                -- ลอยเหนือของที่เก็บ
-                rootPart.CFrame = CFrame.new(lootTargetPos + Vector3.new(0, FloatHeight, 0))
-                task.wait(0.05)
-                -- ใช้ continue เพื่อเก็บของให้เสร็จก่อนไปตีมอน
-            else
-                ------------------------------------------------------------------------------------
-                -- 3. ระบบตีมอนสเตอร์ (ลอยเหนือกองมอนสเตอร์)
-                ------------------------------------------------------------------------------------
+            -- ถ้าไม่มีของ ให้หามอนสเตอร์
+            if not targetPos then
                 local enemies = workspace.GlobalSpriteAnchor:GetChildren()
-                local monsterPos = nil
-                local shortestMonsterDist = math.huge
-
+                local shortestDist = math.huge
                 for _, enemy in pairs(enemies) do
                     if enemy.Name == "EnemyBillboard" or enemy.Name == "EnemyAttachment" or enemy:IsA("Attachment") then
-                        local pos = enemy:IsA("Attachment") and enemy.WorldPosition or (enemy:IsA("BasePart") and enemy.Position)
-                        if pos then
-                            local dist = (rootPart.Position - pos).Magnitude
-                            if dist < shortestMonsterDist then
-                                shortestMonsterDist = dist
-                                monsterPos = pos
+                        local p = enemy:IsA("Attachment") and enemy.WorldPosition or (enemy:IsA("BasePart") and enemy.Position)
+                        if p then
+                            local d = (rootPart.Position - p).Magnitude
+                            if d < shortestDist then
+                                shortestDist = d
+                                targetPos = p
                             end
                         end
                     end
                 end
+            end
 
-                if monsterPos then
-                    -- ลอยค้างเหนือมอนสเตอร์และหันหน้าลงไปมอง
-                    local targetPos = monsterPos + Vector3.new(0, FloatHeight, 0)
-                    rootPart.CFrame = CFrame.lookAt(targetPos, monsterPos)
-                else
+            ------------------------------------------------------------------------------------
+            -- 3. การวาร์ปแบบ Fixed Y (ล็อคความสูง)
+            ------------------------------------------------------------------------------------
+            if targetPos then
+                -- วาร์ปไปที่ X, Z ของเป้าหมาย แต่ใช้ค่า Y ที่เราล็อคไว้ (FixedY)
+                -- และใช้ CFrame.lookAt เพื่อหันหน้าลงไปหาเป้าหมาย
+                local flyPos = Vector3.new(targetPos.X, FixedY, targetPos.Z)
+                rootPart.CFrame = CFrame.lookAt(flyPos, targetPos)
+            else
                     -- 4. ระบบ Auto Start (Lobby Logic)
-                    if State.AutoStart and #enemies == 0 then
-                        task.wait(10)
-                        local args = {
-                        	true
-                        }
-                        game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net"):WaitForChild("RE/Map_ToggleMobSpeedBoost"):FireServer(unpack(args))
-                        task.wait(2)
-                    
-                        local netPath = game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net")
-                    
-                        -- ขั้นตอนที่ 1: วาร์ปไปแมพที่เลือก
-                        local teleportRemote = netPath:WaitForChild("RE/Arena_TeleportToArena")
-                        teleportRemote:FireServer(State.SelectedMap)
-                    
-                        task.wait(1)
-                    
-                        -- ขั้นตอนที่ 2: ตั้งค่า Wave ที่เลือกจาก Dropdown
-                        local setWaveRemote = netPath:WaitForChild("RE/Arena_SetStartingWave")
-                        setWaveRemote:FireServer(State.SelectedWave)
-                    
-                        task.wait(0.5)
-                    
-                        -- ขั้นตอนที่ 3: กดยืนยันเข้าเล่น
-                        local enterRemote = netPath:WaitForChild("RE/Arena_PlayerEnter")
-                        enterRemote:FireServer()
-                    
-                        task.wait(5) -- รอโหลดแมพ
-                    end
+                if State.AutoStart and #enemies == 0 then
+                    task.wait(10)
+                    local args = {
+                    	true
+                    }
+                    game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net"):WaitForChild("RE/Map_ToggleMobSpeedBoost"):FireServer(unpack(args))
+                    task.wait(2)
+                
+                    local netPath = game:GetService("ReplicatedStorage"):WaitForChild("Packages"):WaitForChild("_Index"):WaitForChild("sleitnick_net@0.2.0"):WaitForChild("net")
+                
+                    -- ขั้นตอนที่ 1: วาร์ปไปแมพที่เลือก
+                    local teleportRemote = netPath:WaitForChild("RE/Arena_TeleportToArena")
+                    teleportRemote:FireServer(State.SelectedMap)
+                
+                    task.wait(1)
+                
+                    -- ขั้นตอนที่ 2: ตั้งค่า Wave ที่เลือกจาก Dropdown
+                    local setWaveRemote = netPath:WaitForChild("RE/Arena_SetStartingWave")
+                    setWaveRemote:FireServer(State.SelectedWave)
+                
+                    task.wait(0.5)
+                
+                    -- ขั้นตอนที่ 3: กดยืนยันเข้าเล่น
+                    local enterRemote = netPath:WaitForChild("RE/Arena_PlayerEnter")
+                    enterRemote:FireServer()
+                
+                    task.wait(5) -- รอโหลดแมพ
                 end
             end
         end
