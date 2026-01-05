@@ -872,7 +872,7 @@ local function LogicGamemodes()
             end
         end
 
-        -- task.wait(0.2)
+        task.wait(0.2)
     end
 end
 ------------------------------------------------------------------------------------
