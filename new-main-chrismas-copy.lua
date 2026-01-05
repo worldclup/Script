@@ -786,70 +786,61 @@ local function LogicGamemodes()
         --------------------------------------------------
         -- FIGHT (อยู่ในดันจริง)
         --------------------------------------------------
+        --------------------------------------------------
+        -- FIGHT (ฉบับปรับปรุง: วาร์ปไวขึ้น)
+        --------------------------------------------------
         if inGamemodeZone then
             if State.SelectedEquipBestGamemode and not State.GamemodeSession.Active then
                 ApplyVaultEquipBest(State.SelectedEquipBestGamemode)
             end
             State.GamemodeSession.Active = true
-            if State.AutoLeave then
-                CheckAutoLeave()
-            end
+            if State.AutoLeave then CheckAutoLeave() end
+        
             local EnemiesFolder = Workspace:FindFirstChild("Enemies")
             if EnemiesFolder then
-                for _, enemy in ipairs(EnemiesFolder:GetChildren()) do
-                    -- ดึงข้อมูลเบื้องต้น
-                    local humanoid = enemy:FindFirstChildOfClass("Humanoid")
-                    local uid = enemy:GetAttribute("Uid") or (enemy:FindFirstChild("Uid") and enemy.Uid.Value)
-
-                    -- ตราบใดที่มอนสเตอร์ยังอยู่ และ เลือดยังไม่หมด (หรือยังไม่ตาย)
-                    while enemy and enemy.Parent == EnemiesFolder and (not humanoid or humanoid.Health > 0) do
-                        -- ตรวจสอบเงื่อนไขหยุด Loop (กรณีปิด Script หรือออกจากโซน)
-                        if not State.AutoDungeon or not IsInGamemodeZone() then break end
-
-                        if enemy.PrimaryPart and hrp then
-                            -- -- Teleport ไปเกาะมอนสเตอร์
-                            -- hrp.CFrame = enemy.PrimaryPart.CFrame * CFrame.new(0, 0, -5)
-                            -- 1. หาตำแหน่งของศัตรู (X, Z)
-                            local enemyPos = enemy.PrimaryPart.CFrame.Position
-
-                            -- 2. หาตำแหน่งพื้นของคุณ (Y) 
-                            -- ใช้ตำแหน่งปัจจุบันของตัวละครคุณเอง หรือถ้าอยากให้ชัวร์ว่าติดพื้นตลอด 
-                            -- สามารถใช้ตำแหน่งของขา หรือค่าคงที่ของพื้นแมพได้
-                            local myGroundY = hrp.Position.Y 
-
-                            -- 3. คำนวณจุดที่จะไปยืน (ห่างจากศัตรูออกมา -5 หน่วยในแนวราบ)
-                            -- เราจะสร้าง Vector ใหม่ที่เอาแค่ X, Z ของศัตรูมา แต่ Y เป็นของเรา
-                            local targetFlatPos = Vector3.new(enemyPos.X, myGroundY, enemyPos.Z)
-
-                            -- 4. สร้างตำแหน่งที่ยืน โดยถอยออกมานิดหน่อย (-5 คือระยะห่าง ปรับได้ตามระยะอาวุธ)
-                            -- ใช้ CFrame.lookAt เพื่อให้ตัวละคร "หันหน้า" ไปหาศัตรูเสมอแม้จะยืนอยู่ที่พื้น
-                            local standPos = targetFlatPos + (hrp.CFrame.LookVector * -1) -- หรือระบุตำแหน่งแน่นอน
-
-                            -- แบบง่ายที่สุด: วาร์ปไปที่ศัตรูในระดับพื้นดิน
-                            -- CFrame.new(enemyPos.X, myGroundY, enemyPos.Z) * CFrame.new(0, 0, 5) 
-                            -- 5 คือระยะห่างจากตัวมอนสเตอร์
-                            hrp.CFrame = CFrame.lookAt(
-                                Vector3.new(enemyPos.X, myGroundY, enemyPos.Z) + Vector3.new(0, 0, 5), 
-                                Vector3.new(enemyPos.X, myGroundY, enemyPos.Z)
-                            )
-
-                            -- ส่งคำสั่งตี
-                            if uid then
-                                pcall(function()
-                                    Unreliable:FireServer("Hit", { uid })
-                                end)
+                -- ใช้เป้าหมายเดียวแล้ววนหาใหม่ตลอดเวลาเพื่อให้เกิดการสลับตัวทันที
+                local currentTarget = nil
+                
+                -- หาตัวที่ใกล้ที่สุดและยังมีชีวิต
+                local function FindFastTarget()
+                    local closest, minDst = nil, math.huge
+                    for _, enemy in ipairs(EnemiesFolder:GetChildren()) do
+                        local hum = enemy:FindFirstChildOfClass("Humanoid")
+                        local root = enemy.PrimaryPart
+                        if root and hum and hum.Health > 0 then
+                            local dst = (hrp.Position - root.Position).Magnitude
+                            if dst < minDst then
+                                minDst = dst
+                                closest = enemy
                             end
-                        else
-                            -- ถ้า PrimaryPart หายไป (มอนสเตอร์อาจจะสลายตัว) ให้หลุดลูปนี้
-                            break
                         end
-
-                        task.wait(0.1) -- ความเร็วในการตีและเช็คสถานะซ้ำ
                     end
-
-                    -- เมื่อหลุดจาก while แปลว่าตัวนี้ตายหรือหายไปแล้ว loop 'for' จะไปตัวถัดไปเอง
+                    return closest
+                end
+            
+                currentTarget = FindFastTarget()
+            
+                if currentTarget and currentTarget.PrimaryPart and hrp then
+                    local enemyPos = currentTarget.PrimaryPart.Position
+                    local uid = currentTarget:GetAttribute("Uid") or (currentTarget:FindFirstChild("Uid") and currentTarget.Uid.Value)
+                
+                    -- วาร์ปแบบ Lock แกน Y ให้อยู่ระดับพื้นเสมอ
+                    local myGroundY = hrp.Position.Y
+                    hrp.CFrame = CFrame.lookAt(
+                        Vector3.new(enemyPos.X, myGroundY, enemyPos.Z) + (currentTarget.PrimaryPart.CFrame.LookVector * 5), 
+                        Vector3.new(enemyPos.X, myGroundY, enemyPos.Z)
+                    )
+                
+                    -- ส่งคำสั่งตี (ถ้ามี UID)
+                    if uid then
+                        pcall(function()
+                            Unreliable:FireServer("Hit", { uid })
+                        end)
+                    end
                 end
             end
+            -- ลดเวลา Wait ลงเพื่อให้ลูปรันการค้นหาเป้าหมายใหม่ได้ถี่ขึ้น (ไวขึ้น)
+            task.wait(0.05)
 
         --------------------------------------------------
         -- FINISH (ออกจาก GamemodeZone แล้ว)
