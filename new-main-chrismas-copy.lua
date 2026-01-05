@@ -39,15 +39,6 @@ local RunService = game:GetService("RunService");
 local Reliable = (ReplicatedStorage:WaitForChild("Reply")):WaitForChild("Reliable");
 local Unreliable = (ReplicatedStorage:WaitForChild("Reply")):WaitForChild("Unreliable");
 ------------------------------------------------------------------------------------
---- Anti-AFK System
-------------------------------------------------------------------------------------
-local VirtualUser = game:GetService("VirtualUser")
-LocalPlayer.Idled:Connect(function()
-    VirtualUser:CaptureController()
-    VirtualUser:ClickButton2(Vector2.new())
-    warn("Anti-AFK System: Active!") -- แจ้งเตือนใน Console ว่าระบบทำงาน
-end)
-------------------------------------------------------------------------------------
 --- Module
 ------------------------------------------------------------------------------------
 local ConfigsPath = ReplicatedStorage.Scripts.Configs;
@@ -881,7 +872,7 @@ local function LogicGamemodes()
             end
         end
 
-        -- task.wait(0.2)
+        task.wait(0.2)
     end
 end
 ------------------------------------------------------------------------------------
