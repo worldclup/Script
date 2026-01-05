@@ -150,7 +150,7 @@ local State = {
     YenUpgradeState = {},
     TokenUpgradeState = {},
     AutoAttackAreaUpgrade = false,
-	SelectedEnemy = nil,
+	SelectedEnemy = {},
     SelectedEquipBestFarm = nil,
     SelectedEquipBestGamemode = nil,
     SelectedEquipBestMegaBoss = nil,
@@ -227,6 +227,7 @@ end
 
 Window:OnDestroy(function()
 	State.AutoFarm = false;
+    State.SelectedEnemy = {};
 	State.AutoDungeon = false;
     State.AutoUseKey = false;
     State.DungeonRoom = 50;
@@ -483,9 +484,8 @@ local function LogicAutoFarm()
     local rayParams = RaycastParams.new()
     rayParams.FilterType = Enum.RaycastFilterType.Exclude
 
-    while State.AutoFarm  do
+    while State.AutoFarm do
         if Window.Destroyed then break end;
-
 
         local isBusy = (State.MegaBossSession and State.MegaBossSession.Active)
 
@@ -495,54 +495,50 @@ local function LogicAutoFarm()
             if myChar then
                 hrp = myChar:FindFirstChild("HumanoidRootPart")
                 rayParams.FilterDescendantsInstances = {myChar}
-                
-                -- บังคับให้ Humanoid อยู่ในสถานะยืนตลอดเวลา (กันลอย/กันเด้ง)
                 myHumanoid:ChangeState(Enum.HumanoidStateType.RunningNoPhysics)
             end
     
-            -- [ส่วนการหาเป้าหมายคงเดิม...]
+            -- ตรวจสอบว่าเป้าหมายเดิมยังตายหรือหายไปหรือยัง
             if currentTargetObj and (currentTargetObj.Alive == false or not currentTargetObj.Data) then
                 currentTargetObj = nil;
             end
     
-            if not currentTargetObj and State.SelectedEnemy then
-                local targetName = State.SelectedEnemy.Value;
-                if targetName and hrp and GlobalEnemyMap[targetName] then
-                    local closest, minDst = nil, math.huge;
-                    for _, enemyObj in ipairs(GlobalEnemyMap[targetName] or {}) do
-                        if enemyObj.Alive == true and enemyObj.Data then
-                            local dst = (hrp.Position - enemyObj.Data.CFrame.Position).Magnitude;
-                            if dst < minDst then minDst = dst; closest = enemyObj; end
+            -- --- [ ส่วนที่แก้ไข: ค้นหาจากหลายเป้าหมาย ] ---
+            if not currentTargetObj and State.SelectedEnemy and hrp then
+                local closest, minDst = nil, math.huge;
+
+                -- วนลูปตามชื่อมอนสเตอร์ทั้งหมดที่เลือกไว้ใน Dropdown
+                for _, targetName in pairs(State.SelectedEnemy) do 
+                    if GlobalEnemyMap[targetName.Value] then
+                        for _, enemyObj in ipairs(GlobalEnemyMap[targetName.Value] or {}) do
+                            if enemyObj.Alive == true and enemyObj.Data then
+                                local dst = (hrp.Position - enemyObj.Data.CFrame.Position).Magnitude;
+                                if dst < minDst then 
+                                    minDst = dst; 
+                                    closest = enemyObj; 
+                                end
+                            end
                         end
                     end
-                    currentTargetObj = closest;
                 end
+                currentTargetObj = closest;
             end
+            -- ------------------------------------------
     
-            -- --- ส่วนวาร์ปแบบดูดติดพื้น ---
+            -- ส่วนการวาร์ปและการตี (คงเดิม)
             if currentTargetObj and hrp and currentTargetObj.Data then
                 local enemyPos = currentTargetObj.Data.CFrame.Position
-                
-                -- ยิง Raycast จากตัวมอนสเตอร์ลงไปหาพื้น
                 local rayResult = Workspace:Raycast(enemyPos + Vector3.new(0, 5, 0), Vector3.new(0, -20, 0), rayParams)
                 
                 if rayResult then
-                    -- หาค่า HipHeight ของตัวละครเรา (ปกติคือ 2)
                     local hipHeight = myHumanoid and myHumanoid.HipHeight or 2
-                    
-                    -- คำนวณความสูง: จุดที่ Ray ยิงโดนพื้น + HipHeight + ระยะชดเชยเล็กน้อย
-                    -- ลองปรับจาก 2.8 เป็น 2.5 หรือ 2.0 ถ้ายังลอยอยู่ครับ
                     local finalY = rayResult.Position.Y + hipHeight + 1.2 
-    
                     local targetPos = Vector3.new(enemyPos.X, finalY, enemyPos.Z)
-                    -- ยืนห่างมอนสเตอร์ 5 หน่วย
                     local myNewPos = targetPos + (currentTargetObj.Data.CFrame.LookVector * 5)
     
-                    -- วาร์ปแบบล็อคแกน Y
                     hrp.CFrame = CFrame.lookAt(myNewPos, Vector3.new(enemyPos.X, finalY, enemyPos.Z))
                 end
                 
-                -- หยุดแรงส่งสะสม (สำคัญมากกันตัวเด้งขึ้น)
                 hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
                 hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
             end;
@@ -551,7 +547,6 @@ local function LogicAutoFarm()
                 pcall(function() Unreliable:FireServer("Hit", {currentTargetObj.Uid}) end)
             end;
         else
-            -- ถ้ากำลังยุ่ง (ล่าบอสหรือลงดัน) ให้เคลียร์เป้าหมายเก่าทิ้ง
             currentTargetObj = nil
         end
 
@@ -877,7 +872,7 @@ local function LogicGamemodes()
             end
         end
 
-        task.wait(0.2)
+        -- task.wait(0.2)
     end
 end
 ------------------------------------------------------------------------------------
@@ -1073,7 +1068,7 @@ EnemyDropdown = FarmTab:Dropdown({
 	Title = "Select Enemy",
     Desc = "Select the enemy you want to attack",
 	Values = RefreshEnemyData(),
-	Multi = false,
+	Multi = true,
 	AllowNone = true,
 	Callback = function(v)
 		State.SelectedEnemy = v
