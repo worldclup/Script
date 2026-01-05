@@ -783,61 +783,61 @@ local function LogicGamemodes()
             end
         end
 
---------------------------------------------------
--- FIGHT (ฉบับปรับปรุง: วาร์ปไวขึ้น)
---------------------------------------------------
-if inGamemodeZone then
-    if State.SelectedEquipBestGamemode and not State.GamemodeSession.Active then
-        ApplyVaultEquipBest(State.SelectedEquipBestGamemode)
-    end
-    State.GamemodeSession.Active = true
-    if State.AutoLeave then CheckAutoLeave() end
-
-    local EnemiesFolder = Workspace:FindFirstChild("Enemies")
-    if EnemiesFolder then
-        -- ใช้เป้าหมายเดียวแล้ววนหาใหม่ตลอดเวลาเพื่อให้เกิดการสลับตัวทันที
-        local currentTarget = nil
+        --------------------------------------------------
+        -- FIGHT (ฉบับปรับปรุง: วาร์ปไวขึ้น)
+        --------------------------------------------------
+        if inGamemodeZone then
+            if State.SelectedEquipBestGamemode and not State.GamemodeSession.Active then
+                ApplyVaultEquipBest(State.SelectedEquipBestGamemode)
+            end
+            State.GamemodeSession.Active = true
+            if State.AutoLeave then CheckAutoLeave() end
         
-        -- หาตัวที่ใกล้ที่สุดและยังมีชีวิต
-        local function FindFastTarget()
-            local closest, minDst = nil, math.huge
-            for _, enemy in ipairs(EnemiesFolder:GetChildren()) do
-                -- local hum = enemy:FindFirstChildOfClass("Humanoid")
-                -- local root = enemy.PrimaryPart
-                -- if root and hum and hum.Health > 0 then
-                --     local dst = (hrp.Position - root.Position).Magnitude
-                    -- if dst < minDst then
-                        -- minDst = dst
-                        closest = enemy
-                    -- end
-                -- end
+            local EnemiesFolder = Workspace:FindFirstChild("Enemies")
+            if EnemiesFolder then
+                -- ใช้เป้าหมายเดียวแล้ววนหาใหม่ตลอดเวลาเพื่อให้เกิดการสลับตัวทันที
+                local currentTarget = nil
+                
+                -- หาตัวที่ใกล้ที่สุดและยังมีชีวิต
+                local function FindFastTarget()
+                    local closest, minDst = nil, math.huge
+                    for _, enemy in ipairs(EnemiesFolder:GetChildren()) do
+                        -- local hum = enemy:FindFirstChildOfClass("Humanoid")
+                        -- local root = enemy.PrimaryPart
+                        -- if root and hum and hum.Health > 0 then
+                        --     local dst = (hrp.Position - root.Position).Magnitude
+                            -- if dst < minDst then
+                                -- minDst = dst
+                                closest = enemy
+                            -- end
+                        -- end
+                    end
+                    return closest
+                end
+            
+                currentTarget = FindFastTarget()
+            
+                if currentTarget and currentTarget.PrimaryPart and hrp then
+                    local enemyPos = currentTarget.PrimaryPart.Position
+                    local uid = currentTarget:GetAttribute("Uid") or (currentTarget:FindFirstChild("Uid") and currentTarget.Uid.Value)
+                
+                    -- วาร์ปแบบ Lock แกน Y ให้อยู่ระดับพื้นเสมอ
+                    local myGroundY = hrp.Position.Y
+                    hrp.CFrame = CFrame.lookAt(
+                        Vector3.new(enemyPos.X, myGroundY, enemyPos.Z) + (currentTarget.PrimaryPart.CFrame.LookVector * 5), 
+                        Vector3.new(enemyPos.X, myGroundY, enemyPos.Z)
+                    )
+                
+                    -- ส่งคำสั่งตี (ถ้ามี UID)
+                    if uid then
+                        pcall(function()
+                            Unreliable:FireServer("Hit", { uid })
+                        end)
+                    end
+                end
             end
-            return closest
-        end
-
-        currentTarget = FindFastTarget()
-
-        if currentTarget and currentTarget.PrimaryPart and hrp then
-            local enemyPos = currentTarget.PrimaryPart.Position
-            local uid = currentTarget:GetAttribute("Uid") or (currentTarget:FindFirstChild("Uid") and currentTarget.Uid.Value)
-
-            -- วาร์ปแบบ Lock แกน Y ให้อยู่ระดับพื้นเสมอ
-            local myGroundY = hrp.Position.Y
-            hrp.CFrame = CFrame.lookAt(
-                Vector3.new(enemyPos.X, myGroundY, enemyPos.Z) + (currentTarget.PrimaryPart.CFrame.LookVector * 5), 
-                Vector3.new(enemyPos.X, myGroundY, enemyPos.Z)
-            )
-
-            -- ส่งคำสั่งตี (ถ้ามี UID)
-            if uid then
-                pcall(function()
-                    Unreliable:FireServer("Hit", { uid })
-                end)
-            end
-        end
-    end
-    -- ลดเวลา Wait ลงเพื่อให้ลูปรันการค้นหาเป้าหมายใหม่ได้ถี่ขึ้น (ไวขึ้น)
-    task.wait(0.05)
+            -- ลดเวลา Wait ลงเพื่อให้ลูปรันการค้นหาเป้าหมายใหม่ได้ถี่ขึ้น (ไวขึ้น)
+            task.wait(0.05)
 
         --------------------------------------------------
         -- FINISH (ออกจาก GamemodeZone แล้ว)
