@@ -579,6 +579,7 @@ local function GetAllGamemodesUnified()
         ["Medium"] = 2,
         ["Bleach"] = 2,  -- สำหรับ Raid
         ["Hard"] = 3,
+        ["Kaiju"] = 2,  -- สำหรับ Raid
         ["Default"] = 4,
         ["Insane"] = 4,
         ["SorcerersDefense"] = 5,
@@ -592,6 +593,7 @@ local function GetAllGamemodesUnified()
         ["Dungeon: Insane"] = "Dungeon:4",
         ["Raid: Shinobi"] = "Raid:1",
     	["Raid: Bleach"] = "Raid:2",
+        ["Raid: Kaiju"] = "Raid:3",
         ["Shadow Gate"] = "ShadowGate",
         ["Pirate Tower"] = "PirateTower",
         ["Christmas Raid"] = "ChristmasRaid",
