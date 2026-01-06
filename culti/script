@@ -1,0 +1,35 @@
+// อัปเดต
+local args = {
+	1
+}
+game:GetService("ReplicatedStorage"):WaitForChild("\228\186\139\228\187\182"):WaitForChild("\229\133\172\231\148\168"):WaitForChild("\229\134\156\231\148\176"):WaitForChild("\229\141\135\231\186\167"):FireServer(unpack(args))
+
+// รับ
+local args = {
+	1,
+	Vector2.new(1015.0712890625, 267.08673095703125)
+}
+game:GetService("ReplicatedStorage"):WaitForChild("\228\186\139\228\187\182"):WaitForChild("\229\133\172\231\148\168"):WaitForChild("\229\134\156\231\148\176"):WaitForChild("\233\135\135\233\155\134"):FireServer(unpack(args))
+
+
+//
+
+// craft
+local args = {
+	1
+}
+game:GetService("ReplicatedStorage"):WaitForChild("\228\186\139\228\187\182"):WaitForChild("\229\133\172\231\148\168"):WaitForChild("\231\130\188\229\153\168"):WaitForChild("\229\136\182\228\189\156"):FireServer(unpack(args))
+
+
+// craft ยา
+game:GetService("ReplicatedStorage"):WaitForChild("\228\186\139\228\187\182"):WaitForChild("\229\133\172\231\148\168"):WaitForChild("\231\130\188\228\184\185"):WaitForChild("\229\136\182\228\189\156"):FireServer()
+
+
+// เงิน
+game:GetService("Players").LocalPlayer["\229\128\188"]["\232\180\167\229\184\129"]["\233\135\145\229\184\129"]
+
+//
+local args = {
+	3
+}
+game:GetService("ReplicatedStorage"):WaitForChild("\228\186\139\228\187\182"):WaitForChild("\229\133\172\231\148\168"):WaitForChild("\232\138\130\230\151\165\230\180\187\229\138\168"):WaitForChild("\233\162\134\229\143\150\229\165\150\229\138\177"):FireServer(unpack(args))

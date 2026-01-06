@@ -1,0 +1,85 @@
+------------------------------------------------------------------------------------
+--- Color
+------------------------------------------------------------------------------------
+local Mythic    = Color3.fromHex("#FF3B3B") -- แดงเพลิง (มายา)
+local Green     = Color3.fromHex("#10C550")
+local Grey      = Color3.fromHex("#83889E")
+------------------------------------------------------------------------------------
+---
+------------------------------------------------------------------------------------
+local UI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+local Window = UI:CreateWindow({
+    -- Title = "🅳🅴🅺 🅳🅴🆅 🅷🆄🅱",
+    Title = "DEK DEV HUB", -- "🅳🅴🅺 🅳🅴🆅 🅷🆄🅱",
+	-- Icon = "keyboard",
+	SideBarWidth = 150,
+	Theme = "Dark", -- Dark, Darker, Light, Aqua, Amethyst, Rose
+	Size = UDim2.fromOffset(700, 300),
+	MinSize = Vector2.new(700, 300),
+    MaxSize = Vector2.new(700, 300),
+    -- Theme = "Light",
+    NewElements = true,
+	-- Topbar = {
+	-- 	Height = 44,
+	-- 	ButtonsType = "Mac", -- Default or Mac
+	-- },
+	OpenButton = {
+		Title = "DEK",
+		CornerRadius = UDim.new(0, 16),
+		StrokeThickness = 2,
+		Color = ColorSequence.new(Color3.fromHex("#FFFFFF"), Color3.fromHex("#FFFFFF")),
+		OnlyMobile = false,
+		Enabled = true,
+		Draggable = true,
+        Position = UDim2.new(0, 8, 0, 80),
+	},
+})
+------------------------------------------------------------------------------------
+---
+------------------------------------------------------------------------------------
+local State = {
+    AutoFarm = false,
+};
+
+Window:OnDestroy(function()
+	State.AutoFarm = false;
+end);
+------------------------------------------------------------------------------------
+---
+------------------------------------------------------------------------------------
+local MainTab = Window:Tab({
+    Title = "Main",
+    Icon = "folder",
+    IconColor = Green,
+    IconShape = "Square",
+});
+
+local MoneyInfo = MainTab:Paragraph({
+    Title = "User Info",
+    Desc = "Loading..."
+})
+
+-- MainTab:Toggle({
+--     Title = "Auto Rebirth",
+--     Callback = function(val)
+--         State.AutoRebirth = val;
+--     end
+-- });
+------------------------------------------------------------------------------------
+---
+------------------------------------------------------------------------------------
+-- ใส่ลูปนี้แยกออกมาหรือรวมใน LogicAuto ก็ได้ครับ แต่แนะนำให้เช็คเมื่อ #enemies == 0 (อยู่ Lobby)
+task.spawn(function()
+    while true do
+        if Window.Destroyed then break end
+        task.wait(1)
+
+        local money = game:GetService("Players").LocalPlayer["\229\128\188"]["\232\180\167\229\184\129"]["\233\135\145\229\184\129"].Value
+        MoneyInfo:SetDesc(string.format(
+            "Money: %s\n",
+            money
+        ))
+    end
+end)
+
+Window:SelectTab(1);
