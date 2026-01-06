@@ -2715,7 +2715,7 @@ task.spawn(function()
                             
                             if isMax then
                                 toggleUI:SetTitle(string.format("%s [MAX] ✅", category))
-                                toggleUI:SetDesc(string.format("Rarity: %s | Buff: +%s%%", rarityName, FormatNumber(currentBuff)))
+                                toggleUI:SetDesc(string.format("Rarity: %s\nBuff: +%s%%", rarityName, FormatNumber(currentBuff)))
                                 toggleUI:Lock()
                             else
                                 local cost = GetRarityLevelCost(levelInRarity + 1)
