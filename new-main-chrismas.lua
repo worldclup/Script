@@ -591,6 +591,7 @@ local function GetAllGamemodesUnified()
     	["Dungeon: Medium"] = "Dungeon:2",
     	["Dungeon: Hard"] = "Dungeon:3",
         ["Dungeon: Insane"] = "Dungeon:4",
+        ["Dungeon: Crazy"] = "Dungeon:5",
         ["Raid: Shinobi"] = "Raid:1",
     	["Raid: Bleach"] = "Raid:2",
         ["Raid: Kaiju"] = "Raid:3",
