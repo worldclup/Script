@@ -189,7 +189,7 @@ end);
 ------------------------------------------------------------------------------------
 --- Window UI
 ------------------------------------------------------------------------------------
--- loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/components/loading-aw.lua"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/components/loading-aw.lua"))()
 local UI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
 local Window = UI:CreateWindow({
