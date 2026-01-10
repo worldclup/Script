@@ -2222,30 +2222,6 @@ for _, zoneData in ipairs(sortedZones) do
         end
     end
 end
--- ------------------------------------------------------------------------------------
--- --- 
--- ------------------------------------------------------------------------------------
--- local RarityPowerTab = GachaSection:Tab({
--- 	Title = "Rarity Power",
--- 	Icon = "hand-fist",
--- 	IconColor = Purple,
--- 	IconShape = "Square",
--- })
-
--- -- สร้าง UI สำหรับแต่ละหมวดหมู่ (Scrap, Sorcerer)
--- local RarityToggles = {}
--- local categoryList = {"Scrap", "Sorcerer"} -- ชื่อตามลูกใน Script
-
--- for _, category in ipairs(categoryList) do
---     RarityToggles[category] = RarityPowerTab:Toggle({
---         Title = category,
---         Value = false,
---         Callback = function(v)
---             State.AutoRarityPower[category] = v
---         end
---     })
--- end
-
 ------------------------------------------------------------------------------------
 --- EnchantSection
 ------------------------------------------------------------------------------------
@@ -2626,6 +2602,7 @@ task.spawn(function()
                                 if isMax then
                                     toggleUI:SetTitle(string.format("%s [MAX] ✅", categoryName))
                                     toggleUI:SetDesc(string.format("Rarity: %s\nBuff: +%s%%", rarityName, FormatNumber(currentBuff)))
+                                    toggleUI:Lock()
                                 else
                                     local cost = GetRarityLevelCost(levelInRarity + 1)
                                     toggleUI:SetTitle(string.format("%s [%s]", categoryName, rarityName))
