@@ -58,6 +58,7 @@ local CraftModule = require(ConfigsPath.Crafts)
 local MegabossModule = require(ConfigsPath.Machines.MegaBoss);
 local AvatarLevelModule = require(ConfigsPath.Machines.AvatarLevels);
 local RarityPowerModule = require(ConfigsPath.RarityPower);
+local RarityPowerFolder = ConfigsPath.RarityPower;
 
 local ChanceModules = {};
 local ChancePath = ReplicatedStorage.Scripts.Configs:FindFirstChild("ChanceUpgrades");
@@ -188,7 +189,7 @@ end);
 ------------------------------------------------------------------------------------
 --- Window UI
 ------------------------------------------------------------------------------------
-loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/components/loading-aw.lua"))()
+-- loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/components/loading-aw.lua"))()
 local UI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
 local Window = UI:CreateWindow({
@@ -579,6 +580,7 @@ local function GetAllGamemodesUnified()
         ["Medium"] = 2,
         ["Bleach"] = 2,  -- สำหรับ Raid
         ["Hard"] = 3,
+        ["Kaiju"] = 2,  -- สำหรับ Raid
         ["Default"] = 4,
         ["Insane"] = 4,
         ["SorcerersDefense"] = 5,
@@ -590,8 +592,10 @@ local function GetAllGamemodesUnified()
     	["Dungeon: Medium"] = "Dungeon:2",
     	["Dungeon: Hard"] = "Dungeon:3",
         ["Dungeon: Insane"] = "Dungeon:4",
+        ["Dungeon: Crazy"] = "Dungeon:5",
         ["Raid: Shinobi"] = "Raid:1",
     	["Raid: Bleach"] = "Raid:2",
+        ["Raid: Kaiju"] = "Raid:3",
         ["Shadow Gate"] = "ShadowGate",
         ["Pirate Tower"] = "PirateTower",
         ["Christmas Raid"] = "ChristmasRaid",
@@ -784,72 +788,60 @@ local function LogicGamemodes()
         end
 
         --------------------------------------------------
-        -- FIGHT (อยู่ในดันจริง)
+        -- FIGHT (ฉบับปรับปรุง: วาร์ปไวขึ้น)
         --------------------------------------------------
         if inGamemodeZone then
             if State.SelectedEquipBestGamemode and not State.GamemodeSession.Active then
                 ApplyVaultEquipBest(State.SelectedEquipBestGamemode)
             end
             State.GamemodeSession.Active = true
-            if State.AutoLeave then
-                CheckAutoLeave()
-            end
+            if State.AutoLeave then CheckAutoLeave() end
+        
             local EnemiesFolder = Workspace:FindFirstChild("Enemies")
             if EnemiesFolder then
-                for _, enemy in ipairs(EnemiesFolder:GetChildren()) do
-                    -- ดึงข้อมูลเบื้องต้น
-                    local humanoid = enemy:FindFirstChildOfClass("Humanoid")
-                    local uid = enemy:GetAttribute("Uid") or (enemy:FindFirstChild("Uid") and enemy.Uid.Value)
-
-                    -- ตราบใดที่มอนสเตอร์ยังอยู่ และ เลือดยังไม่หมด (หรือยังไม่ตาย)
-                    while enemy and enemy.Parent == EnemiesFolder and (not humanoid or humanoid.Health > 0) do
-                        -- ตรวจสอบเงื่อนไขหยุด Loop (กรณีปิด Script หรือออกจากโซน)
-                        if not State.AutoDungeon or not IsInGamemodeZone() then break end
-
-                        if enemy.PrimaryPart and hrp then
-                            -- -- Teleport ไปเกาะมอนสเตอร์
-                            -- hrp.CFrame = enemy.PrimaryPart.CFrame * CFrame.new(0, 0, -5)
-                            -- 1. หาตำแหน่งของศัตรู (X, Z)
-                            local enemyPos = enemy.PrimaryPart.CFrame.Position
-
-                            -- 2. หาตำแหน่งพื้นของคุณ (Y) 
-                            -- ใช้ตำแหน่งปัจจุบันของตัวละครคุณเอง หรือถ้าอยากให้ชัวร์ว่าติดพื้นตลอด 
-                            -- สามารถใช้ตำแหน่งของขา หรือค่าคงที่ของพื้นแมพได้
-                            local myGroundY = hrp.Position.Y 
-
-                            -- 3. คำนวณจุดที่จะไปยืน (ห่างจากศัตรูออกมา -5 หน่วยในแนวราบ)
-                            -- เราจะสร้าง Vector ใหม่ที่เอาแค่ X, Z ของศัตรูมา แต่ Y เป็นของเรา
-                            local targetFlatPos = Vector3.new(enemyPos.X, myGroundY, enemyPos.Z)
-
-                            -- 4. สร้างตำแหน่งที่ยืน โดยถอยออกมานิดหน่อย (-5 คือระยะห่าง ปรับได้ตามระยะอาวุธ)
-                            -- ใช้ CFrame.lookAt เพื่อให้ตัวละคร "หันหน้า" ไปหาศัตรูเสมอแม้จะยืนอยู่ที่พื้น
-                            local standPos = targetFlatPos + (hrp.CFrame.LookVector * -1) -- หรือระบุตำแหน่งแน่นอน
-
-                            -- แบบง่ายที่สุด: วาร์ปไปที่ศัตรูในระดับพื้นดิน
-                            -- CFrame.new(enemyPos.X, myGroundY, enemyPos.Z) * CFrame.new(0, 0, 5) 
-                            -- 5 คือระยะห่างจากตัวมอนสเตอร์
-                            hrp.CFrame = CFrame.lookAt(
-                                Vector3.new(enemyPos.X, myGroundY, enemyPos.Z) + Vector3.new(0, 0, 5), 
-                                Vector3.new(enemyPos.X, myGroundY, enemyPos.Z)
-                            )
-
-                            -- ส่งคำสั่งตี
-                            if uid then
-                                pcall(function()
-                                    Unreliable:FireServer("Hit", { uid })
-                                end)
-                            end
-                        else
-                            -- ถ้า PrimaryPart หายไป (มอนสเตอร์อาจจะสลายตัว) ให้หลุดลูปนี้
-                            break
-                        end
-
-                        task.wait(0.1) -- ความเร็วในการตีและเช็คสถานะซ้ำ
+                -- ใช้เป้าหมายเดียวแล้ววนหาใหม่ตลอดเวลาเพื่อให้เกิดการสลับตัวทันที
+                local currentTarget = nil
+                
+                -- หาตัวที่ใกล้ที่สุดและยังมีชีวิต
+                local function FindFastTarget()
+                    local closest, minDst = nil, math.huge
+                    for _, enemy in ipairs(EnemiesFolder:GetChildren()) do
+                        -- local hum = enemy:FindFirstChildOfClass("Humanoid")
+                        -- local root = enemy.PrimaryPart
+                        -- if root and hum and hum.Health > 0 then
+                        --     local dst = (hrp.Position - root.Position).Magnitude
+                            -- if dst < minDst then
+                                -- minDst = dst
+                                closest = enemy
+                            -- end
+                        -- end
                     end
-
-                    -- เมื่อหลุดจาก while แปลว่าตัวนี้ตายหรือหายไปแล้ว loop 'for' จะไปตัวถัดไปเอง
+                    return closest
+                end
+            
+                currentTarget = FindFastTarget()
+            
+                if currentTarget and currentTarget.PrimaryPart and hrp then
+                    local enemyPos = currentTarget.PrimaryPart.Position
+                    local uid = currentTarget:GetAttribute("Uid") or (currentTarget:FindFirstChild("Uid") and currentTarget.Uid.Value)
+                
+                    -- วาร์ปแบบ Lock แกน Y ให้อยู่ระดับพื้นเสมอ
+                    local myGroundY = hrp.Position.Y
+                    hrp.CFrame = CFrame.lookAt(
+                        Vector3.new(enemyPos.X, myGroundY, enemyPos.Z) + (currentTarget.PrimaryPart.CFrame.LookVector * 5), 
+                        Vector3.new(enemyPos.X, myGroundY, enemyPos.Z)
+                    )
+                
+                    -- ส่งคำสั่งตี (ถ้ามี UID)
+                    if uid then
+                        pcall(function()
+                            Unreliable:FireServer("Hit", { uid })
+                        end)
+                    end
                 end
             end
+            -- ลดเวลา Wait ลงเพื่อให้ลูปรันการค้นหาเป้าหมายใหม่ได้ถี่ขึ้น (ไวขึ้น)
+            task.wait(0.05)
 
         --------------------------------------------------
         -- FINISH (ออกจาก GamemodeZone แล้ว)
@@ -2029,172 +2021,7 @@ local GachaRoll = GachaSection:Tab({
 	IconShape = "Square",
 })
 ------------------------------------------------------------------------------------
----
-------------------------------------------------------------------------------------
-local ConfigZones = ZoneModule
-local sortedList = {}
-------------------------------------------------------------------------------------
---- 1. นำข้อมูลจาก Module มาใส่ตารางชั่วคราวเพื่อเตรียม Sort
-------------------------------------------------------------------------------------
-for zoneKey, zoneData in pairs(ConfigZones) do
-    table.insert(sortedList, {
-        Key = zoneKey,
-		DisplayName = zoneData.Name,
-        Order = zoneData.Order,
-        Objects = zoneData.Objects
-    })
-end
-------------------------------------------------------------------------------------
---- 2. ทำการ Sort ตารางตามค่า Order (น้อยไปมาก)
-------------------------------------------------------------------------------------
-table.sort(sortedList, function(a, b)
-    return a.Order < b.Order
-end)
-------------------------------------------------------------------------------------
---- 3. แปลงข้อมูลให้อยู่ในรูปแบบ zones = { { ["Name"] = { screens } } }
-------------------------------------------------------------------------------------
-local zones = {}
-for _, data in ipairs(sortedList) do
-    local screens = {}
-    if data.Objects then
-        for _, obj in ipairs(data.Objects) do
-            if obj.Screen then
-                table.insert(screens, obj.Screen)
-            end
-        end
-    end
-
-    table.insert(zones, {
-        [data.DisplayName] = screens
-    })
-end
-------------------------------------------------------------------------------------
----
-------------------------------------------------------------------------------------
-local function GetGachaConfig(name)
-    -- หาไฟล์ใน RollGachas ก่อน
-    local file = RollGachaModule:FindFirstChild(name)
-    if not file then
-        -- ถ้าไม่เจอ หาใน RollGachaUpgrades
-        file = RollGachaUpgradeModule:FindFirstChild(name)
-    end
-    if file and file:IsA("ModuleScript") then
-        return require(file)
-    end
-    return nil
-end
-------------------------------------------------------------------------------------
----
-------------------------------------------------------------------------------------
-local function GetRollUpgradeConfig(name)
-    -- หาไฟล์ใน RollGachas ก่อน
-    local file = RollGachaUpgradeModule:FindFirstChild(name)
-    if file and file:IsA("ModuleScript") then
-        return require(file)
-    end
-    return nil
-end
-------------------------------------------------------------------------------------
----
-------------------------------------------------------------------------------------
-local RollToggleUI = {}
-local RollConfigCache = {}
-for _, zoneInfo in ipairs(zones) do
-    for zoneName, screenList in pairs(zoneInfo) do
-        -- 1. ตารางเก็บ Screen ที่พบในโฟลเดอร์ที่กำหนด
-        local validGachasInZone = {}
-
-        for _, screenName in ipairs(screenList) do
-            local config = GetGachaConfig(screenName)
-            if config then
-                table.insert(validGachasInZone, screenName)
-                -- เก็บข้อมูลที่ดึงมาจาก Config ลง Cache
-                local maxLvl = 7
-                if config.List and type(config.List) == "table" then
-                    maxLvl = #config.List -- นับจำนวนสมาชิกในตาราง List
-                end
-
-                RollConfigCache[screenName] = {
-                    Material = config.Material,
-                    Display = config.Display,
-                    MaxLevel = tostring(maxLvl) -- ✨ เก็บเป็น String เพื่อไปเช็คกับ PlayerData.Vault
-                }
-            end
-        end
-
-        -- 2. สร้าง UI เฉพาะโซนที่มีรายการ Gacha หรือ Upgrade เท่านั้น
-        if #validGachasInZone > 0 then
-            GachaRoll:Section({
-                Title = zoneName,
-                TextSize = 14
-            })
-
-            local currentGroup = nil
-            for i, gachaName in ipairs(validGachasInZone) do
-                -- จัดกลุ่ม Toggle ทีละ 2 ปุ่ม
-                if i % 2 == 1 then
-                    currentGroup = GachaRoll:Group({})
-                end
-
-                -- สร้าง State และ Toggle สำหรับรายการนั้นๆ
-                State.GachaState[gachaName] = false
-
-                RollToggleUI[gachaName] = currentGroup:Toggle({
-                    Title = gachaName,
-                    Value = false,
-                    Callback = function(v)
-                        State.GachaState[gachaName] = v
-                    end
-                })
-            end
-        end
-    end
-end
-----------------------------------------------------------------
--- [ส่วนเพิ่มเติม] ฟังก์ชันจัดการ UI ตอนสุ่ม (Anti-Animation)
-----------------------------------------------------------------
-task.spawn(function()
-	local Players = game:GetService("Players")
-	local PlayerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
-	while true do
-		if Window.Destroyed then
-			break
-		end
-
-        -- 1. เช็คว่าตอนนี้เราเปิด Auto Roll ตัวไหนทิ้งไว้บ้างไหม
-		local isRolling = false
-		for name, isActive in pairs(State.GachaState) do
-			if isActive then
-				isRolling = true
-				break
-			end
-		end
-
-        -- 2. ถ้ากำลังสุ่มอยู่ ให้รันตรรกะปิด Animation และบังคับเปิด HUD
-		if isRolling then
-            -- ปิดหน้าต่างสุ่ม (Crate) เพื่อไม่ให้แสดง Animation
-			local CrateUI = PlayerGui:FindFirstChild("Crate")
-			if CrateUI then
-				CrateUI.Parent = nil
-			end
-
-            -- บังคับให้หน้าจอหลัก (HUD) แสดงผลตลอดเวลา
-			local ScreenUI = PlayerGui:FindFirstChild("Screen")
-			if ScreenUI and (not ScreenUI.Enabled) then
-				ScreenUI.Enabled = true
-			end
-
-            -- บังคับเปิดแถบเมนูด้านบนของ Roblox
-			local Topbar = PlayerGui:FindFirstChild("TopbarStandard")
-			if Topbar and (not Topbar.Enabled) then
-				Topbar.Enabled = true
-			end
-		end
-		task.wait(0.5) -- เช็คทุกๆ 0.5 วินาทีตามต้นฉบับ
-	end
-end)
-------------------------------------------------------------------------------------
---- GachaSection Tab 1.5
+--- GachaSection Tab 2
 ------------------------------------------------------------------------------------
 local RollUpgradeTap = GachaSection:Tab({
 	Title = "Roll Upgrades",
@@ -2203,59 +2030,7 @@ local RollUpgradeTap = GachaSection:Tab({
 	IconShape = "Square",
 })
 ------------------------------------------------------------------------------------
----
-------------------------------------------------------------------------------------
-local RollUpgradeToggleUI = {}
-local RollUpgradeConfigCache = {}
-for _, zoneInfo in ipairs(zones) do
-    for zoneName, screenList in pairs(zoneInfo) do
-        -- 1. ตารางเก็บ Screen ที่พบในโฟลเดอร์ที่กำหนด
-        local validRollUpgradeInZone = {}
-
-        for _, screenName in ipairs(screenList) do
-            local config = GetRollUpgradeConfig(screenName)
-            if config then
-                table.insert(validRollUpgradeInZone, screenName)
-                -- เก็บข้อมูลที่ดึงมาจาก Config ลง Cache
-
-                RollUpgradeConfigCache[screenName] = {
-                    Material = config.UpgradeMaterial,
-                    Display = config.Display,
-                    MaxLevel = config.MaxLevel or 50,
-                }
-            end
-        end
-
-        -- 2. สร้าง UI เฉพาะโซนที่มีรายการ Gacha หรือ Upgrade เท่านั้น
-        if #validRollUpgradeInZone > 0 then
-            RollUpgradeTap:Section({
-                Title = zoneName,
-                TextSize = 14
-            })
-
-            local currentGroup = nil
-            for i, gachaName in ipairs(validRollUpgradeInZone) do
-                -- จัดกลุ่ม Toggle ทีละ 2 ปุ่ม
-                if i % 2 == 1 then
-                    currentGroup = RollUpgradeTap:Group({})
-                end
-
-                -- สร้าง State และ Toggle สำหรับรายการนั้นๆ
-                State.RollUpgradeState[gachaName] = false
-
-                RollUpgradeToggleUI[gachaName] = RollUpgradeTap:Toggle({
-                    Title = gachaName,
-                    Value = false,
-                    Callback = function(v)
-                        State.RollUpgradeState[gachaName] = v
-                    end
-                })
-            end
-        end
-    end
-end
-------------------------------------------------------------------------------------
---- GachaSection Tab 2
+--- GachaSection Tab 3
 ------------------------------------------------------------------------------------
 local TrainerUpgradeTab = GachaSection:Tab({
 	Title = "Trainers",
@@ -2264,73 +2039,7 @@ local TrainerUpgradeTab = GachaSection:Tab({
 	IconShape = "Square",
 })
 ------------------------------------------------------------------------------------
----
-------------------------------------------------------------------------------------
-local function GetTrainerConfig(name)
-    -- หาไฟล์ใน RollGachas ก่อน
-    local file = TrainerModule:FindFirstChild(name)
-    if file and file:IsA("ModuleScript") then
-        return require(file)
-    end
-    return nil
-end
-------------------------------------------------------------------------------------
----
-------------------------------------------------------------------------------------
-local TrainerToggleUI = {}
-local TrainerConfigCache = {}
-for _, zoneInfo in ipairs(zones) do
-    for zoneName, screenList in pairs(zoneInfo) do
-        -- 1. ตารางเก็บ Screen ที่พบในโฟลเดอร์ที่กำหนด
-        local validTrainersInZone = {}
-
-        for _, screenName in ipairs(screenList) do
-            local config = GetTrainerConfig(screenName)
-            if config then
-                table.insert(validTrainersInZone, screenName)
-                -- เก็บข้อมูลที่ดึงมาจาก Config ลง Cache
-
-                TrainerConfigCache[screenName] = {
-                    Material = config.TOKEN_NAME,
-                    Display = config.Display,
-                    MaxLevel = config.MAX_LEVEL or 100,
-                    -- ดึงฟังก์ชันมาเก็บไว้เรียกใช้ใน Loop
-                    GetCost = config.GetCost,
-                    GetChance = config.GetChance
-                }
-            end
-        end
-
-        -- 2. สร้าง UI เฉพาะโซนที่มีรายการ Gacha หรือ Upgrade เท่านั้น
-        if #validTrainersInZone > 0 then
-            TrainerUpgradeTab:Section({
-                Title = zoneName,
-                TextSize = 14
-            })
-
-            local currentGroup = nil
-            for i, gachaName in ipairs(validTrainersInZone) do
-                -- จัดกลุ่ม Toggle ทีละ 2 ปุ่ม
-                if i % 2 == 1 then
-                    currentGroup = TrainerUpgradeTab:Group({})
-                end
-
-                -- สร้าง State และ Toggle สำหรับรายการนั้นๆ
-                State.TrainerState[gachaName] = false
-
-                TrainerToggleUI[gachaName] = currentGroup:Toggle({
-                    Title = gachaName,
-                    Value = false,
-                    Callback = function(v)
-                        State.TrainerState[gachaName] = v
-                    end
-                })
-            end
-        end
-    end
-end
-------------------------------------------------------------------------------------
---- 
+--- GachaSection Tab 4
 ------------------------------------------------------------------------------------
 local RarityPowerTab = GachaSection:Tab({
 	Title = "Rarity Power",
@@ -2338,20 +2047,204 @@ local RarityPowerTab = GachaSection:Tab({
 	IconColor = Purple,
 	IconShape = "Square",
 })
+------------------------------------------------------------------------------------
+--- [ ส่วนการประกาศตารางสำหรับเก็บข้อมูล ]
+------------------------------------------------------------------------------------
+local ZoneGroups = {} 
+local RollConfigCache = {}
+local RollUpgradeConfigCache = {} -- ✨ เพิ่ม Cache สำหรับ Upgrade
+local TrainerConfigCache = {}     -- ✨ เพิ่ม Cache สำหรับ Trainer
+local RarityPowerCache = {} -- ✨ เพิ่ม Cache สำหรับ Rarity Power
 
--- สร้าง UI สำหรับแต่ละหมวดหมู่ (Scrap, Sorcerer)
-local RarityToggles = {}
-local categoryList = {"Scrap", "Sorcerer"} -- ชื่อตามลูกใน Script
+local RollToggleUI = {} 
+local RollUpgradeToggleUI = {}    -- ✨ เพิ่ม UI Table สำหรับ Upgrade
+local TrainerToggleUI = {}        -- ✨ เพิ่ม UI Table สำหรับ Trainer
+local RarityPowerToggleUI = {} -- ✨ เพิ่ม UI Table สำหรับ Rarity Power
 
-for _, category in ipairs(categoryList) do
-    RarityToggles[category] = RarityPowerTab:Toggle({
-        Title = category,
-        Value = false,
-        Callback = function(v)
-            State.AutoRarityPower[category] = v
+local sortedZones = {}
+------------------------------------------------------------------------------------
+--- 2. วนลูปเช็คไฟล์ Gacha ทั้งหมด
+------------------------------------------------------------------------------------
+-- ฟังก์ชันรวบรวมไฟล์และจัดกลุ่มตาม Zone
+local function ProcessModuleFiles(modulePath, groupType, cacheTable)
+    if not modulePath then return end
+    for _, file in ipairs(modulePath:GetChildren()) do
+        if file:IsA("ModuleScript") then
+            local success, config = pcall(require, file)
+            if success and config and config.Zone then
+                local zKey = config.Zone
+                
+                -- สร้างกลุ่ม Zone อัตโนมัติหากยังไม่มี
+                if not ZoneGroups[zKey] then
+                    local zoneInfo = ZoneModule[zKey]
+                    ZoneGroups[zKey] = {
+                        DisplayName = zoneInfo and zoneInfo.Name or zKey,
+                        Order = zoneInfo and zoneInfo.Order or 99,
+                        Gachas = {},
+                        Upgrades = {},
+                        Trainers = {},
+                        RarityPowers = {} -- ✨ เพิ่มหมวดหมู่ RarityPower
+                    }
+                end
+                
+                -- แยกชื่อไฟล์ลงกลุ่มตามประเภทที่ระบุ
+                table.insert(ZoneGroups[zKey][groupType], file.Name)
+                
+                -- เซฟลง Cache ตามประเภท (เพื่อใช้ใน Loop การทำงาน)
+                if groupType == "Gachas" then
+                    cacheTable[file.Name] = {
+                        Material = config.Material,
+                        Display = config.Display,
+                        MaxLevel = tostring(config.List and #config.List or 7)
+                    }
+                elseif groupType == "Upgrades" then
+                    cacheTable[file.Name] = {
+                        Material = config.UpgradeMaterial,
+                        Display = config.Display,
+                        MaxLevel = config.MaxLevel or 50,
+                    }
+                elseif groupType == "Trainers" then
+                    cacheTable[file.Name] = {
+                        Material = config.TOKEN_NAME,
+                        Display = config.Display,
+                        MaxLevel = config.MAX_LEVEL or 100,
+                        GetCost = config.GetCost,
+                        GetChance = config.GetChance
+                    }
+                elseif groupType == "RarityPowers" then -- ✨ จัดการไฟล์จาก RarityPower
+                    cacheTable[file.Name] = config
+                end
+            end
         end
-    })
+    end
 end
+
+-- รันการรวบรวมไฟล์จากทั้ง 3 โฟลเดอร์
+ProcessModuleFiles(RollGachaModule, "Gachas", RollConfigCache)
+ProcessModuleFiles(RollGachaUpgradeModule, "Upgrades", RollUpgradeConfigCache)
+ProcessModuleFiles(TrainerModule, "Trainers", TrainerConfigCache)
+ProcessModuleFiles(RarityPowerFolder, "RarityPowers", RarityPowerCache)
+
+-- 3. ทำการ Sort ตาม Order
+for key, data in pairs(ZoneGroups) do table.insert(sortedZones, data) end
+table.sort(sortedZones, function(a, b) return a.Order < b.Order end)
+------------------------------------------------------------------------------------
+--- 4. ส่วนการสร้าง UI (ตอนนี้จะทำงานจนจบ ไม่ค้างที่ Christmas แล้ว)
+------------------------------------------------------------------------------------
+for _, zoneData in ipairs(sortedZones) do
+    if #zoneData.Gachas > 0 then
+        GachaRoll:Section({
+            Title = zoneData.DisplayName,
+            TextSize = 14
+        })
+
+        local currentGroup = nil
+        for i, gachaName in ipairs(zoneData.Gachas) do
+            if i % 2 == 1 then
+                currentGroup = GachaRoll:Group({})
+            end
+
+            -- ตรวจสอบด้วยว่า State.GachaState มีอยู่จริงไหม ถ้าไม่มีให้ใส่ local State = { GachaState = {} } ไว้หัวสคริปต์
+            State.GachaState[gachaName] = false
+
+            -- ✅ เมื่อ RollToggleUI ไม่เป็น nil แล้ว รายการทั้งหมดจะขึ้นครบครับ
+            RollToggleUI[gachaName] = currentGroup:Toggle({
+                Title = gachaName,
+                Value = false,
+                Callback = function(v)
+                    State.GachaState[gachaName] = v
+                end
+            })
+        end
+    end
+end
+------------------------------------------------------------------------------------
+--- 4.1 UI สำหรับ Roll Upgrades
+------------------------------------------------------------------------------------
+for _, zoneData in ipairs(sortedZones) do
+    if #zoneData.Upgrades > 0 then
+        RollUpgradeTap:Section({ Title = zoneData.DisplayName, TextSize = 14 })
+        local currentGroup = nil
+        for i, gachaName in ipairs(zoneData.Upgrades) do
+            if i % 2 == 1 then currentGroup = RollUpgradeTap:Group({}) end
+            State.RollUpgradeState[gachaName] = false -- เตรียม State ไว้
+            RollUpgradeToggleUI[gachaName] = currentGroup:Toggle({
+                Title = gachaName,
+                Value = false,
+                Callback = function(v) State.RollUpgradeState[gachaName] = v end
+            })
+        end
+    end
+end
+------------------------------------------------------------------------------------
+--- 4.2 UI สำหรับ Trainers
+------------------------------------------------------------------------------------
+for _, zoneData in ipairs(sortedZones) do
+    if #zoneData.Trainers > 0 then
+        TrainerUpgradeTab:Section({ Title = zoneData.DisplayName, TextSize = 14 })
+        local currentGroup = nil
+        for i, gachaName in ipairs(zoneData.Trainers) do
+            if i % 2 == 1 then currentGroup = TrainerUpgradeTab:Group({}) end
+            State.TrainerState[gachaName] = false -- เตรียม State ไว้
+            TrainerToggleUI[gachaName] = currentGroup:Toggle({
+                Title = gachaName,
+                Value = false,
+                Callback = function(v) State.TrainerState[gachaName] = v end
+            })
+        end
+    end
+end
+------------------------------------------------------------------------------------
+--- 4.3 UI สำหรับ Rarity Power (แยกตาม Zone ชัดเจน)
+------------------------------------------------------------------------------------
+for _, zoneData in ipairs(sortedZones) do
+    if #zoneData.RarityPowers > 0 then
+        -- สร้างหัวข้อ Section ตามชื่อโซน (เช่น Zone 10)
+        RarityPowerTab:Section({ Title = zoneData.DisplayName, TextSize = 14 })
+        
+        local currentGroup = nil
+        for i, fileName in ipairs(zoneData.RarityPowers) do
+            -- จัดกลุ่มปุ่มทีละ 2
+            if i % 2 == 1 then
+                currentGroup = RarityPowerTab:Group({})
+            end
+
+            State.AutoRarityPower[fileName] = false -- ตั้งค่าสถานะเริ่มต้น
+            
+            -- สร้างปุ่ม Toggle
+            RarityPowerToggleUI[fileName] = currentGroup:Toggle({
+                Title = "Auto " .. fileName,
+                Value = false,
+                Callback = function(v)
+                    State.AutoRarityPower[fileName] = v
+                end
+            })
+        end
+    end
+end
+-- ------------------------------------------------------------------------------------
+-- --- 
+-- ------------------------------------------------------------------------------------
+-- local RarityPowerTab = GachaSection:Tab({
+-- 	Title = "Rarity Power",
+-- 	Icon = "hand-fist",
+-- 	IconColor = Purple,
+-- 	IconShape = "Square",
+-- })
+
+-- -- สร้าง UI สำหรับแต่ละหมวดหมู่ (Scrap, Sorcerer)
+-- local RarityToggles = {}
+-- local categoryList = {"Scrap", "Sorcerer"} -- ชื่อตามลูกใน Script
+
+-- for _, category in ipairs(categoryList) do
+--     RarityToggles[category] = RarityPowerTab:Toggle({
+--         Title = category,
+--         Value = false,
+--         Callback = function(v)
+--             State.AutoRarityPower[category] = v
+--         end
+--     })
+-- end
 
 ------------------------------------------------------------------------------------
 --- EnchantSection
@@ -2701,50 +2594,56 @@ task.spawn(function()
                 end
 
                 -- --- [ ส่วนของ Fetch Data Loop ] ---
-                -- สมมติคีย์ข้อมูลคือ PlayerData.RarityPower
                 if PlayerData.RarityPowers then
-                    for _, category in ipairs(categoryList) do
-                        local toggleUI = RarityToggles[category]
-                        local currentTotalLevel = PlayerData.RarityPowers[category] or 0
-                    
-                        -- 1. หาข้อมูล Rarity ปัจจุบัน
-                        local rarityIdx, levelInRarity, maxInRarity = GetCurrentRarityInfo(category, currentTotalLevel)
-                        local rarityName = RarityPowerModule.GetRarityName(category, rarityIdx)
-                    
-                        -- 2. ดึง TokenName เฉพาะของ Rarity จาก Module
-                        local categoryData = RarityPowerModule.List[category]
-                        local currentRarityData = categoryData and categoryData.List and categoryData.List[rarityIdx]
+                    -- วนลูปผ่าน sortedZones เพื่อให้เข้าถึงทุกไฟล์ RarityPower ที่ถูกรวบรวมไว้
+                    for _, zoneData in ipairs(sortedZones) do
+                        for _, categoryName in ipairs(zoneData.RarityPowers) do
+                            -- 1. ดึง UI Toggle จาก Table ที่เราประกาศไว้ตอนสร้าง UI
+                            local toggleUI = RarityPowerToggleUI[categoryName]
+                            if not toggleUI then end
 
-                        local tokenName = currentRarityData and currentRarityData.TokenName or "RaidModeKey"
-                        local currentToken = PlayerData.Materials and PlayerData.Materials[tokenName] or 0
-                    
-                        pcall(function()
-                            local currentBuff = GetRarityBuff(currentTotalLevel)
-                            local nextBuff = GetRarityBuff(currentTotalLevel + 1)
-                            
-                            -- ตรวจสอบเงื่อนไขการอัปเกรดสูงสุด
-                            local isMax = RarityPowerModule.GetEvolveCost(category, rarityIdx) == nil and levelInRarity >= maxInRarity
-                            
-                            if isMax then
-                                toggleUI:SetTitle(string.format("%s [MAX] ✅", category))
-                                toggleUI:SetDesc(string.format("Rarity: %s | Buff: +%s%%", rarityName, FormatNumber(currentBuff)))
-                            else
-                                local cost = GetRarityLevelCost(levelInRarity + 1)
-                                toggleUI:SetTitle(string.format("%s [%s]", category, rarityName))
+                            local currentTotalLevel = PlayerData.RarityPowers[categoryName] or 0
 
-                                -- เพิ่มการแสดงผลจำนวน Token ที่มี (Current / Required)
-                                toggleUI:SetDesc(string.format(
-                                    "Lv: [%d/%d]\n%s: %s / %s\nBuff: +%s%% -> +%s%%",
-                                    levelInRarity, 
-                                    maxInRarity, 
-                                    tokenName, 
-                                    FormatNumber(currentToken), 
-                                    FormatNumber(cost),
-                                    FormatNumber(currentBuff), 
-                                    FormatNumber(nextBuff)
-                                ))
-                            end
-                        end)
+                            -- 2. หาข้อมูล Rarity และ Buff
+                            -- (สมมติว่าฟังก์ชัน GetCurrentRarityInfo และ RarityPowerModule ถูกต้องตาม Module ของเกม)
+                            local rarityIdx, levelInRarity, maxInRarity = GetCurrentRarityInfo(categoryName, currentTotalLevel)
+                            local rarityName = RarityPowerModule.GetRarityName(categoryName, rarityIdx)
+
+                            -- 3. ดึงข้อมูล Token เฉพาะของ Rarity นั้นๆ
+                            local categoryData = RarityPowerModule.List[categoryName]
+                            local currentRarityData = categoryData and categoryData.List and categoryData.List[rarityIdx]
+
+                            local tokenName = currentRarityData and currentRarityData.TokenName or "RaidModeKey"
+                            local currentToken = PlayerData.Materials and PlayerData.Materials[tokenName] or 0
+
+                            pcall(function()
+                                local currentBuff = GetRarityBuff(currentTotalLevel)
+                                local nextBuff = GetRarityBuff(currentTotalLevel + 1)
+
+                                -- ตรวจสอบเงื่อนไขการอัปเกรดสูงสุด
+                                local isMax = RarityPowerModule.GetEvolveCost(categoryName, rarityIdx) == nil and levelInRarity >= maxInRarity
+
+                                if isMax then
+                                    toggleUI:SetTitle(string.format("%s [MAX] ✅", categoryName))
+                                    toggleUI:SetDesc(string.format("Rarity: %s\nBuff: +%s%%", rarityName, FormatNumber(currentBuff)))
+                                else
+                                    local cost = GetRarityLevelCost(levelInRarity + 1)
+                                    toggleUI:SetTitle(string.format("%s [%s]", categoryName, rarityName))
+
+                                    -- แสดงผล Lv, จำนวน Token และ Buff ที่จะได้รับ
+                                    toggleUI:SetDesc(string.format(
+                                        "Lv: [%d/%d]\n%s: %s / %s\nBuff: +%s%% -> +%s%%",
+                                        levelInRarity, 
+                                        maxInRarity, 
+                                        tokenName, 
+                                        FormatNumber(currentToken), 
+                                        FormatNumber(cost),
+                                        FormatNumber(currentBuff), 
+                                        FormatNumber(nextBuff)
+                                    ))
+                                end
+                            end)
+                        end
                     end
                 end
             end
