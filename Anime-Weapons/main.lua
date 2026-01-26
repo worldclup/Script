@@ -835,15 +835,39 @@ local function LogicGamemodes()
             
                 currentTarget = FindFastTarget()
             
+                -- if currentTarget and currentTarget.PrimaryPart and hrp then
+                --     local enemyPos = currentTarget.PrimaryPart.Position
+                --     local uid = currentTarget:GetAttribute("Uid") or (currentTarget:FindFirstChild("Uid") and currentTarget.Uid.Value)
+                
+                --     -- วาร์ปแบบ Lock แกน Y ให้อยู่ระดับพื้นเสมอ
+                --     local myGroundY = hrp.Position.Y
+                --     hrp.CFrame = CFrame.lookAt(
+                --         Vector3.new(enemyPos.X, myGroundY, enemyPos.Z) + (currentTarget.PrimaryPart.CFrame.LookVector * 5), 
+                --         Vector3.new(enemyPos.X, myGroundY, enemyPos.Z)
+                --     )
+                
+                --     -- ส่งคำสั่งตี (ถ้ามี UID)
+                --     if uid then
+                --         pcall(function()
+                --             Unreliable:FireServer("Hit", { uid })
+                --         end)
+                --     end
+                -- end
+                -- กำหนดความสูงที่ต้องการให้ลอย (ปรับเลข 5 หรือ 10 ตามความชอบ)
+                local floatHeight = 5
+
                 if currentTarget and currentTarget.PrimaryPart and hrp then
                     local enemyPos = currentTarget.PrimaryPart.Position
                     local uid = currentTarget:GetAttribute("Uid") or (currentTarget:FindFirstChild("Uid") and currentTarget.Uid.Value)
                 
-                    -- วาร์ปแบบ Lock แกน Y ให้อยู่ระดับพื้นเสมอ
-                    local myGroundY = hrp.Position.Y
+                    -- วาร์ปแบบ Lock แกน Y และบวกความสูง floatHeight เข้าไปเพื่อให้ลอย
+                    -- เราจะใช้ความสูงจากศัตรูเป็นเกณฑ์แล้วบวกเพิ่ม เพื่อให้ลอยเหนือหัวศัตรูเสมอ
+                    local targetY = enemyPos.Y + floatHeight
+                    local targetPosition = Vector3.new(enemyPos.X, targetY, enemyPos.Z)
+                
                     hrp.CFrame = CFrame.lookAt(
-                        Vector3.new(enemyPos.X, myGroundY, enemyPos.Z) + (currentTarget.PrimaryPart.CFrame.LookVector * 5), 
-                        Vector3.new(enemyPos.X, myGroundY, enemyPos.Z)
+                        targetPosition + (currentTarget.PrimaryPart.CFrame.LookVector * 5), 
+                        targetPosition
                     )
                 
                     -- ส่งคำสั่งตี (ถ้ามี UID)
