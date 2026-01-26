@@ -854,7 +854,7 @@ local function LogicGamemodes()
                 --     end
                 -- end
                 -- กำหนดความสูงที่ต้องการให้ลอย (ปรับเลข 5 หรือ 10 ตามความชอบ)
-                local floatHeight = 5
+                local floatHeight = 2
 
                 if currentTarget and currentTarget.PrimaryPart and hrp then
                     local enemyPos = currentTarget.PrimaryPart.Position
