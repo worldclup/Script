@@ -572,6 +572,7 @@ local function GetAllGamemodesUnified()
         ["ChristmasRaid"] = 6,
         ["SorcerersDefense"] = 6,
         ["CapitalRaid"] = 7,
+        ["MagicRaid"] = 8,
     }
 
     -- 2. กำหนดลำดับของความยากภายในกลุ่ม
@@ -586,6 +587,7 @@ local function GetAllGamemodesUnified()
         ["Insane"] = 4,
         ["SorcerersDefense"] = 5,
         ["CapitalRaid"] = 6,
+        ["MagicRaid"] = 7,
     }
 
     local GamemodeMap = {
@@ -603,6 +605,7 @@ local function GetAllGamemodesUnified()
         ["Christmas Raid"] = "ChristmasRaid",
         ["Sorcerers Defense"] = "SorcerersDefense",
         ["Capital Raid"] = "CapitalRaid",
+        ["Magic Raid"] = "MagicRaid",
     }
 
     if not allModes then return unifiedList end
@@ -690,6 +693,9 @@ local function GetCurrentMapStatus()
     if Workspace:FindFirstChild("CapitalRaid") then
 		return "CapitalRaid";
 	end;
+    if Workspace:FindFirstChild("MagicRaid") then
+		return "MagicRaid";
+	end;
 	if Workspace:FindFirstChild("Enemies") and (not zones) then
 		return "Dungeon:Active";
 	end;
@@ -726,6 +732,7 @@ local function IsInGamemodeZone()
         or zone:match("SorcerersDefense")
         or zone:match("ChristmasRaid")
         or zone:match("CapitalRaid")
+        or zone:match("MagicRaid")
 end
 ------------------------------------------------------------------------------------
 ---
