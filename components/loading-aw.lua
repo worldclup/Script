@@ -57,7 +57,7 @@ local function PlayPortalGreenBlurLoading()
 
     -- 3. DESCRIPTION (Anime Weapons)
     local Desc = Instance.new("TextLabel")
-    Desc.Text = "Scipt For Fun"
+    Desc.Text = "Script For Fun"
     Desc.Font = Enum.Font.GothamMedium
     Desc.TextSize = 14
     Desc.TextColor3 = Color3.fromHex("#98FB98")
