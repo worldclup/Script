@@ -24,6 +24,7 @@ local flyHeight = 10
 local hoverY = nil
 local bodyVelocity = nil
 local bodyGyro = nil
+local bodyPosition = nil
 
 local speedEnabled = false
 local walkSpeed = 50
@@ -49,10 +50,17 @@ local function startFly()
 	flying = true
 
 	bodyVelocity = Instance.new("BodyVelocity")
-	bodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+	bodyVelocity.MaxForce = Vector3.new(math.huge, 0, math.huge)
 	bodyVelocity.Velocity = Vector3.zero
 	bodyVelocity.Parent = rootPart
 	hoverY = rootPart.Position.Y + flyHeight
+
+	bodyPosition = Instance.new("BodyPosition")
+	bodyPosition.MaxForce = Vector3.new(0, math.huge, 0)
+	bodyPosition.Position = Vector3.new(0, hoverY, 0)
+	bodyPosition.P = 10000
+	bodyPosition.D = 1500
+	bodyPosition.Parent = rootPart
 
 	bodyGyro = Instance.new("BodyGyro")
 	bodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
@@ -68,6 +76,7 @@ local function stopFly()
 
 	if bodyVelocity then bodyVelocity:Destroy() bodyVelocity = nil end
 	if bodyGyro then bodyGyro:Destroy() bodyGyro = nil end
+	if bodyPosition then bodyPosition:Destroy() bodyPosition = nil end
 	hoverY = nil
 	humanoid.PlatformStand = false
 end
@@ -97,7 +106,7 @@ player.Idled:Connect(function()
 end)
 
 RunService.Heartbeat:Connect(function()
-	if not flying or not bodyVelocity or not bodyGyro then return end
+	if not flying or not bodyVelocity or not bodyGyro or not bodyPosition then return end
 
 	local cam = workspace.CurrentCamera
 	local dir = Vector3.zero
@@ -114,8 +123,8 @@ RunService.Heartbeat:Connect(function()
 		dir = Vector3.zero
 	end
 
-	local verticalSpeed = math.clamp((hoverY - rootPart.Position.Y) * 6, -flySpeed, flySpeed)
-	bodyVelocity.Velocity = Vector3.new(dir.X, verticalSpeed, dir.Z)
+	bodyVelocity.Velocity = Vector3.new(dir.X, 0, dir.Z)
+	bodyPosition.Position = Vector3.new(0, hoverY, 0)
 
 	local flatLook = Vector3.new(cam.CFrame.LookVector.X, 0, cam.CFrame.LookVector.Z)
 	if flatLook.Magnitude > 0 then
@@ -258,6 +267,20 @@ local function stopKillAura()
 	end
 end
 
+local function getSafeUpgradeKey()
+	local upgrades = player.PlayerGui:FindFirstChild("Hud")
+		and player.PlayerGui.Hud:FindFirstChild("Upgrades")
+	if not upgrades or not upgrades.Visible then return nil end
+
+	for index, key in ipairs({ Enum.KeyCode.Z, Enum.KeyCode.X, Enum.KeyCode.C }) do
+		local card = upgrades:FindFirstChild("UpgradeCard_" .. index)
+		local price = card and card:FindFirstChild("Price", true)
+		if card and card.Visible and price and price:IsA("TextLabel") and price.Text:sub(1, 1) == "$" then
+			return key
+		end
+	end
+end
+
 local function setAutoUpgrade(enabled)
 	autoUpgradeEnabled = enabled
 	autoUpgradeToken = autoUpgradeToken + 1
@@ -266,12 +289,12 @@ local function setAutoUpgrade(enabled)
 	local token = autoUpgradeToken
 	task.spawn(function()
 		while autoUpgradeEnabled and token == autoUpgradeToken do
-			for _, key in ipairs({ Enum.KeyCode.Z, Enum.KeyCode.X, Enum.KeyCode.C }) do
-				if not autoUpgradeEnabled or token ~= autoUpgradeToken then return end
+			local key = getSafeUpgradeKey()
+			if key then
 				VirtualInputManager:SendKeyEvent(true, key, false, game)
 				VirtualInputManager:SendKeyEvent(false, key, false, game)
-				task.wait(autoUpgradeDelay)
 			end
+			task.wait(autoUpgradeDelay)
 		end
 	end)
 end
@@ -415,13 +438,13 @@ CombatTab:Slider({
 CombatTab:Divider()
 
 CombatTab:Toggle({
-	Title = "Auto Upgrade (Z → X → C)",
+	Title = "Auto Upgrade (เลี่ยง Robux)",
 	Default = false,
 	Callback = setAutoUpgrade,
 })
 
 CombatTab:Slider({
-	Title = "ความเร็ว Auto Upgrade (วินาที/ปุ่ม)",
+	Title = "ความเร็ว Auto Upgrade (วินาที/รอบ)",
 	Step = 0.1,
 	Value = { Min = 0.1, Max = 5, Default = 1 },
 	Callback = function(value) autoUpgradeDelay = value end,
