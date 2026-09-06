@@ -32,6 +32,7 @@ local lastFire = 0
 local killAuraConnection
 local weaponLabel
 local shownWeaponName
+local noWeaponText = "No weapon equipped"
 
 local antiAfkEnabled = false
 local normalQualityLevel = settings().Rendering.QualityLevel
@@ -160,7 +161,7 @@ end
 
 local function updateWeaponLabel()
 	local weapon = getEquippedWeapon()
-	local name = weapon and weapon.Name or "ไม่พบอาวุธ"
+	local name = weapon and weapon.Name or noWeaponText
 	if weaponLabel and name ~= shownWeaponName then
 		shownWeaponName = name
 		weaponLabel:SetDesc(name)
@@ -269,7 +270,33 @@ RunService.Heartbeat:Connect(function()
 	end
 end)
 
-local Window = WindUI:CreateWindow({
+local language = "English"
+local text = {
+	English = {
+		main = "Main", combat = "Combat", settings = "Settings", fly = "Fly", flySpeed = "Fly Speed", flyHeight = "Fly Height",
+		speed = "Speed", walkSpeed = "Walk Speed", killAura = "KillAura", waveSkip = "Auto Wave Skip", killRange = "KillAura Range",
+		fireRate = "Fire Rate (seconds)", weaponUpgrade = "Auto Upgrade Weapon", equipWeapon = "Auto Equip Weapon (1)",
+		equipWeaponDesc = "Press 1 after upgrading a weapon", healthUpgrade = "Auto Upgrade Health", upgradeRate = "Auto Upgrade Rate (seconds)",
+		weapon = "Weapon in Use", noWeapon = "No weapon equipped", antiAfk = "Anti AFK", boostFps = "Boost FPS",
+		stopAll = "Stop All & Close UI", language = "Language",
+	},
+	Thai = {
+		main = "หลัก", combat = "ต่อสู้", settings = "ตั้งค่า", fly = "ลอย", flySpeed = "ความเร็วลอย", flyHeight = "ความสูงที่ลอย",
+		speed = "วิ่งไว", walkSpeed = "ความเร็ววิ่ง", killAura = "โจมตีอัตโนมัติ", waveSkip = "ข้ามเวฟอัตโนมัติ", killRange = "ระยะโจมตีอัตโนมัติ",
+		fireRate = "ความเร็วยิง (วินาที)", weaponUpgrade = "อัปเกรดปืนอัตโนมัติ", equipWeapon = "ถืออาวุธอัตโนมัติ (1)",
+		equipWeaponDesc = "กด 1 หลังอัปเกรดปืน", healthUpgrade = "อัปเกรดเลือดอัตโนมัติ", upgradeRate = "ความเร็วอัปเกรด (วินาที)",
+		weapon = "อาวุธที่ใช้", noWeapon = "ไม่พบอาวุธ", antiAfk = "กัน AFK", boostFps = "เพิ่ม FPS",
+		stopAll = "หยุดทั้งหมดและปิด UI", language = "ภาษา",
+	},
+}
+
+local function tr(key)
+	return text[language][key]
+end
+
+local Window
+local function createUI()
+Window = WindUI:CreateWindow({
 	Title = "DEK DEV HUB",
 	Folder = "Dek_Dev_Hub_Zombie_Arena",
 	Icon = "swords",
@@ -294,124 +321,161 @@ local Window = WindUI:CreateWindow({
 
 Window:SetToggleKey(Enum.KeyCode.RightControl)
 
-local MainTab = Window:Tab({ Title = "Main", Icon = "house" })
-local CombatTab = Window:Tab({ Title = "Combat", Icon = "crosshair" })
-local SettingsTab = Window:Tab({ Title = "Settings", Icon = "settings" })
+local titleControls = {}
+local descControls = {}
+local function localizeTitle(key, control)
+	titleControls[key] = control
+	return control
+end
+local function localizeDesc(key, control)
+	descControls[key] = control
+	return control
+end
+local function applyLanguage()
+	for key, control in pairs(titleControls) do
+		if type(control.SetTitle) == "function" then control:SetTitle(tr(key)) end
+	end
+	for key, control in pairs(descControls) do
+		if type(control.SetDesc) == "function" then control:SetDesc(tr(key)) end
+	end
+	noWeaponText = tr("noWeapon")
+	shownWeaponName = nil
+	updateWeaponLabel()
+end
 
-MainTab:Toggle({
-	Title = "Fly",
-	Default = false,
+local MainTab = localizeTitle("main", Window:Tab({ Title = tr("main"), Icon = "house" }))
+local CombatTab = localizeTitle("combat", Window:Tab({ Title = tr("combat"), Icon = "crosshair" }))
+local SettingsTab = localizeTitle("settings", Window:Tab({ Title = tr("settings"), Icon = "settings" }))
+
+localizeTitle("fly", MainTab:Toggle({
+	Title = tr("fly"),
+	Default = flying,
 	Callback = function(value)
 		if value then startFly() else stopFly() end
 	end,
-})
+}))
 
-MainTab:Slider({
-	Title = "ความเร็วลอย",
+localizeTitle("flySpeed", MainTab:Slider({
+	Title = tr("flySpeed"),
 	Step = 1,
 	Value = { Min = 10, Max = 150, Default = 50 },
 	Callback = function(value) flySpeed = value end,
-})
+}))
 
-MainTab:Slider({
-	Title = "ความสูงที่ลอย",
+localizeTitle("flyHeight", MainTab:Slider({
+	Title = tr("flyHeight"),
 	Step = 1,
 	Value = { Min = 3, Max = 100, Default = 10 },
 	Callback = function(value)
 		if flying and hoverY then hoverY += value - flyHeight end
 		flyHeight = value
 	end,
-})
+}))
 
 MainTab:Divider()
-MainTab:Toggle({
-	Title = "Speed",
-	Default = false,
+localizeTitle("speed", MainTab:Toggle({
+	Title = tr("speed"),
+	Default = speedEnabled,
 	Callback = function(value)
 		speedEnabled = value
 		humanoid.WalkSpeed = value and walkSpeed or normalSpeed
 	end,
-})
+}))
 
-MainTab:Slider({
-	Title = "ความเร็ววิ่ง",
+localizeTitle("walkSpeed", MainTab:Slider({
+	Title = tr("walkSpeed"),
 	Step = 1,
 	Value = { Min = 16, Max = 200, Default = 50 },
 	Callback = function(value)
 		walkSpeed = value
 		if speedEnabled then humanoid.WalkSpeed = walkSpeed end
 	end,
-})
+}))
 
-CombatTab:Toggle({
-	Title = "KillAura",
-	Default = false,
+localizeTitle("killAura", CombatTab:Toggle({
+	Title = tr("killAura"),
+	Default = killAuraEnabled,
 	Callback = function(value)
 		killAuraEnabled = value
 		if value then startKillAura() else stopKillAura() end
 	end,
-})
+}))
 
-CombatTab:Toggle({
-	Title = "Auto Wave Skip",
-	Default = false,
+localizeTitle("waveSkip", CombatTab:Toggle({
+	Title = tr("waveSkip"),
+	Default = autoWaveSkipEnabled,
 	Callback = setAutoWaveSkip,
-})
+}))
 
-CombatTab:Slider({
-	Title = "ระยะ KillAura",
+localizeTitle("killRange", CombatTab:Slider({
+	Title = tr("killRange"),
 	Step = 1,
 	Value = { Min = 20, Max = 250, Default = 80 },
 	Callback = function(value) killAuraRange = value end,
-})
+}))
 
-CombatTab:Slider({
-	Title = "ความเร็วยิง (วินาที)",
+localizeTitle("fireRate", CombatTab:Slider({
+	Title = tr("fireRate"),
 	Step = 0.01,
 	Value = { Min = 0.05, Max = 0.5, Default = 0.1 },
 	Callback = function(value) fireCooldown = value end,
-})
+}))
 
 CombatTab:Divider()
 
-CombatTab:Toggle({
-	Title = "Auto Upgrade Weapon",
-	Default = false,
+localizeTitle("weaponUpgrade", CombatTab:Toggle({
+	Title = tr("weaponUpgrade"),
+	Default = autoWeaponUpgradeEnabled,
 	Callback = setAutoWeaponUpgrade,
-})
+}))
 
-CombatTab:Toggle({
-	Title = "Auto Equip Weapon (1)",
-	Desc = "กด 1 หลังอัปเกรดปืน",
-	Default = false,
+localizeDesc("equipWeaponDesc", localizeTitle("equipWeapon", CombatTab:Toggle({
+	Title = tr("equipWeapon"),
+	Desc = tr("equipWeaponDesc"),
+	Default = autoEquipWeaponEnabled,
 	Callback = function(value) autoEquipWeaponEnabled = value end,
-})
+})))
 
-CombatTab:Toggle({
-	Title = "Auto Upgrade Health",
-	Default = false,
+localizeTitle("healthUpgrade", CombatTab:Toggle({
+	Title = tr("healthUpgrade"),
+	Default = autoHealthUpgradeEnabled,
 	Callback = setAutoHealthUpgrade,
-})
+}))
 
-CombatTab:Slider({
-	Title = "ความเร็ว Auto Upgrade (วินาที)",
+localizeTitle("upgradeRate", CombatTab:Slider({
+	Title = tr("upgradeRate"),
 	Step = 0.1,
 	Value = { Min = 0.1, Max = 5, Default = 1 },
 	Callback = function(value) autoUpgradeDelay = value end,
-})
+}))
 
 CombatTab:Divider()
-weaponLabel = CombatTab:Paragraph({ Title = "อาวุธที่ใช้", Desc = "ไม่พบอาวุธ" })
+noWeaponText = tr("noWeapon")
+shownWeaponName = nil
+weaponLabel = localizeDesc("noWeapon", localizeTitle("weapon", CombatTab:Paragraph({ Title = tr("weapon"), Desc = tr("noWeapon") })))
 updateWeaponLabel()
 
-SettingsTab:Toggle({
-	Title = "Anti AFK",
-	Default = false,
-	Callback = function(value) antiAfkEnabled = value end,
-})
+localizeTitle("language", SettingsTab:Dropdown({
+	Title = tr("language"),
+	Values = { "English", "ไทย" },
+	Multi = false,
+	Default = language == "Thai" and "ไทย" or "English",
+	Callback = function(value)
+		local nextLanguage = value == "ไทย" and "Thai" or "English"
+		if nextLanguage == language then return end
+		language = nextLanguage
+		applyLanguage()
+	end,
+}))
 
-SettingsTab:Button({
-	Title = "Boost FPS",
+localizeTitle("antiAfk", SettingsTab:Toggle({
+	Title = tr("antiAfk"),
+	Default = antiAfkEnabled,
+	Callback = function(value) antiAfkEnabled = value end,
+}))
+
+localizeTitle("boostFps", SettingsTab:Button({
+	Title = tr("boostFps"),
 	Icon = "zap",
 	Color = Color3.fromHex("#30FF6A"),
 	Callback = function()
@@ -455,17 +519,21 @@ SettingsTab:Button({
         }
 		loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/components/boost-fps.lua"))()
 	end,
-})
+}))
 
-SettingsTab:Button({
-	Title = "Stop All & Close UI",
+localizeTitle("stopAll", SettingsTab:Button({
+	Title = tr("stopAll"),
 	Icon = "circle-x",
 	Color = Color3.fromHex("#ff4830"),
 	Callback = function()
 		resetAll()
 		Window:Destroy()
 	end,
-})
+}))
+
+end
+
+createUI()
 
 player.CharacterAdded:Connect(function(newCharacter)
 	resetAll()
