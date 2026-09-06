@@ -7,6 +7,7 @@ local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualUser = game:GetService("VirtualUser")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
@@ -36,6 +37,9 @@ local lastFire = 0
 local weaponLabel
 local shownWeaponName
 local antiAfkEnabled = false
+local autoUpgradeEnabled = false
+local autoUpgradeDelay = 1
+local autoUpgradeToken = 0
 
 -- ======================
 -- ระบบลอย
@@ -254,6 +258,24 @@ local function stopKillAura()
 	end
 end
 
+local function setAutoUpgrade(enabled)
+	autoUpgradeEnabled = enabled
+	autoUpgradeToken = autoUpgradeToken + 1
+	if not enabled then return end
+
+	local token = autoUpgradeToken
+	task.spawn(function()
+		while autoUpgradeEnabled and token == autoUpgradeToken do
+			for _, key in ipairs({ Enum.KeyCode.Z, Enum.KeyCode.X, Enum.KeyCode.C }) do
+				if not autoUpgradeEnabled or token ~= autoUpgradeToken then return end
+				VirtualInputManager:SendKeyEvent(true, key, false, game)
+				VirtualInputManager:SendKeyEvent(false, key, false, game)
+				task.wait(autoUpgradeDelay)
+			end
+		end
+	end)
+end
+
 local function resetAll()
 	killAuraEnabled = false
 	stopKillAura()
@@ -262,6 +284,7 @@ local function resetAll()
 	humanoid.WalkSpeed = normalSpeed
 	lastFire = 0
 	antiAfkEnabled = false
+	setAutoUpgrade(false)
 
 	for key in pairs(keys) do
 		keys[key] = false
@@ -387,6 +410,21 @@ CombatTab:Slider({
 	Step = 0.01,
 	Value = { Min = 0.05, Max = 0.5, Default = 0.1 },
 	Callback = function(value) fireCooldown = value end,
+})
+
+CombatTab:Divider()
+
+CombatTab:Toggle({
+	Title = "Auto Upgrade (Z → X → C)",
+	Default = false,
+	Callback = setAutoUpgrade,
+})
+
+CombatTab:Slider({
+	Title = "ความเร็ว Auto Upgrade (วินาที/ปุ่ม)",
+	Step = 0.1,
+	Value = { Min = 0.1, Max = 5, Default = 1 },
+	Callback = function(value) autoUpgradeDelay = value end,
 })
 
 CombatTab:Divider()
