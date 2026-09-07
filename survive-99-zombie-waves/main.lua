@@ -319,6 +319,7 @@ end
 -- ======================
 local Window = WindUI:CreateWindow({
 	Title = "DEK DEV HUB",
+	Author = "Survive 99 Zombie",
 	Folder = "Dek_Dev_Hub_v1",
 	Icon = "swords",
 	NewElements = true,
