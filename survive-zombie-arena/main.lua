@@ -1,3 +1,5 @@
+-- 1. Loading Screen
+loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/components/loading-aw.lua"))()
 local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
 local Players = game:GetService("Players")
@@ -298,6 +300,7 @@ local Window
 local function createUI()
 Window = WindUI:CreateWindow({
 	Title = "DEK DEV HUB",
+	Author = "Survive Zombie Arena",
 	Folder = "Dek_Dev_Hub_Zombie_Arena",
 	Icon = "swords",
 	NewElements = true,
