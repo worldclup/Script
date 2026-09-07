@@ -6,6 +6,7 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualUser = game:GetService("VirtualUser")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
@@ -33,6 +34,10 @@ local weaponId = 300004
 local killAuraConnection
 local autoPickCardEnabled = false
 local lastCardPick = 0
+local skillKeys = { Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three }
+local autoSkills = { [Enum.KeyCode.One] = false, [Enum.KeyCode.Two] = false, [Enum.KeyCode.Three] = false }
+local autoSkillDelay = 1
+local lastSkillUse = {}
 
 local remoteSpyEnabled = false
 local remoteSpyCombatOnly = false
@@ -250,6 +255,17 @@ RunService.Heartbeat:Connect(function()
 	end
 end)
 
+RunService.Heartbeat:Connect(function()
+	local now = os.clock()
+	for keyCode, enabled in pairs(autoSkills) do
+		if enabled and now - (lastSkillUse[keyCode] or 0) >= autoSkillDelay then
+			lastSkillUse[keyCode] = now
+			VirtualInputManager:SendKeyEvent(true, keyCode, false, game)
+			VirtualInputManager:SendKeyEvent(false, keyCode, false, game)
+		end
+	end
+end)
+
 player.Idled:Connect(function()
 	if antiAfkEnabled then
 		VirtualUser:CaptureController()
@@ -261,6 +277,7 @@ local function resetAll()
 	killAuraEnabled = false
 	stopKillAura()
 	autoPickCardEnabled = false
+	for _, keyCode in ipairs(skillKeys) do autoSkills[keyCode] = false end
 	stopFly()
 	speedEnabled = false
 	humanoid.WalkSpeed = normalSpeed
@@ -329,6 +346,22 @@ CombatTab:Toggle({
 	Title = "Auto Pick Card (Card 1)",
 	Default = false,
 	Callback = function(value) autoPickCardEnabled = value end,
+})
+
+CombatTab:Divider()
+for index, keyCode in ipairs(skillKeys) do
+	CombatTab:Toggle({
+		Title = "Auto Skill " .. index,
+		Default = false,
+		Callback = function(value) autoSkills[keyCode] = value end,
+	})
+end
+
+CombatTab:Slider({
+	Title = "Auto Skill Rate (seconds)",
+	Step = 0.1,
+	Value = { Min = 0.1, Max = 10, Default = 1 },
+	Callback = function(value) autoSkillDelay = value end,
 })
 
 CombatTab:Slider({
