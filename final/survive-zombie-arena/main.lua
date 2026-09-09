@@ -10,9 +10,11 @@ local VirtualUser = game:GetService("VirtualUser")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local SCRIPT_URL = "https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/final/survive-zombie-arena/main.lua"
-local queueOnTeleport = queue_on_teleport or (syn and syn.queue_on_teleport)
+local queueOnTeleport = queue_on_teleport or queueonteleport or (syn and syn.queue_on_teleport)
 if type(queueOnTeleport) == "function" then
-	queueOnTeleport(('loadstring(game:HttpGet("%s"))()'):format(SCRIPT_URL))
+	queueOnTeleport(('task.wait(3); if not game:IsLoaded() then game.Loaded:Wait() end; loadstring(game:HttpGet("%s"))()'):format(SCRIPT_URL))
+else
+	warn("[Auto Reload] Your executor does not support queue_on_teleport")
 end
 
 local player = Players.LocalPlayer
