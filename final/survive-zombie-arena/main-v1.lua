@@ -9,12 +9,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualUser = game:GetService("VirtualUser")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 
-local SCRIPT_URL = "https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/survive%20zombie%20arena/main.lua"
-local queueOnTeleport = queue_on_teleport or (syn and syn.queue_on_teleport)
-if type(queueOnTeleport) == "function" then
-	queueOnTeleport(('loadstring(game:HttpGet("%s"))()'):format(SCRIPT_URL))
-end
-
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
