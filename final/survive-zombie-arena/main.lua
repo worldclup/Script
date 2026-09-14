@@ -6,6 +6,8 @@ local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualUser = game:GetService("VirtualUser")
 local VirtualInputManager = game:GetService("VirtualInputManager")
+local GearData = require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("GearData"))
+local ClassData = require(ReplicatedStorage:WaitForChild("Data"):WaitForChild("ClassData"))
 
 local SCRIPT_URL = "https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/final/survive-zombie-arena/main.lua"
 local queueOnTeleport = queue_on_teleport or queueonteleport or (syn and syn.queue_on_teleport)
@@ -52,6 +54,8 @@ local weaponUpgradeToken = 0
 local healthUpgradeToken = 0
 local autoWaveSkipEnabled = false
 local waveSkipToken = 0
+local autoSkills = {}
+local autoSkillTokens = {}
 
 local function getGunHit()
 	local remotes = ReplicatedStorage:FindFirstChild("Remotes")
@@ -65,10 +69,68 @@ local function getUpgradeRemote(name)
 	return upgradeRemotes and upgradeRemotes:FindFirstChild(name)
 end
 
+local function isWeaponMaxLevel()
+	local playerGui = player:FindFirstChild("PlayerGui")
+	local controlPanel = playerGui and playerGui:FindFirstChild("MainGui") and playerGui.MainGui:FindFirstChild("ControlPanel2")
+	local nextUpgrade = controlPanel and controlPanel:FindFirstChild("NextUpgrade")
+	local label = nextUpgrade and nextUpgrade:FindFirstChild("DescriptionLabel")
+	return label and label.Text == "MAX LEVEL"
+end
+
 local function equipWeapon()
 	if character:FindFirstChildWhichIsA("Tool") then return end
+	local tool = player.Backpack:FindFirstChildWhichIsA("Tool")
+	if tool then
+		humanoid:EquipTool(tool)
+		return
+	end
+	-- Keyboard fallback for games that give the weapon through the hotbar only.
 	VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.One, false, game)
 	VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.One, false, game)
+end
+
+local function getCurrentClassGears()
+	local remotes = ReplicatedStorage:WaitForChild("Remotes", 10)
+	local dataRemotes = remotes and remotes:WaitForChild("DataRemotes", 10)
+	local getSelectedClass = dataRemotes and dataRemotes:WaitForChild("GetSelectedClass", 10)
+	if not getSelectedClass then
+		warn("[Auto Skills] GetSelectedClass remote not found")
+		return {}
+	end
+
+	local ok, className = pcall(function()
+		return getSelectedClass:InvokeServer()
+	end)
+	if not ok then
+		warn("[Auto Skills] GetSelectedClass failed:", className)
+		return {}
+	end
+
+	local gearsOk, gears = pcall(ClassData.GetClassGears, className)
+	if not gearsOk or type(gears) ~= "table" then
+		warn("[Auto Skills] GetClassGears failed for", className, gears)
+		return {}
+	end
+	print("[Auto Skills] Class:", className, "| Gears:", table.concat(gears, ", "))
+	return gears
+end
+
+local function setAutoSkill(skill, enabled)
+	autoSkills[skill] = autoSkills[skill] or { enabled = false, delay = 1 }
+	autoSkills[skill].enabled = enabled
+	autoSkillTokens[skill] = (autoSkillTokens[skill] or 0) + 1
+	if not enabled then return end
+
+	local token = autoSkillTokens[skill]
+	task.spawn(function()
+		while autoSkills[skill].enabled and autoSkillTokens[skill] == token do
+			local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+			local gearRemotes = remotes and remotes:FindFirstChild("GearRemotes")
+			local purchase = gearRemotes and gearRemotes:FindFirstChild("GearPurchase")
+			if purchase then purchase:FireServer(skill) end
+			task.wait(autoSkills[skill].delay)
+		end
+	end)
 end
 
 local function setAutoWeaponUpgrade(enabled)
@@ -79,6 +141,10 @@ local function setAutoWeaponUpgrade(enabled)
 	local token = weaponUpgradeToken
 	task.spawn(function()
 		while autoWeaponUpgradeEnabled and token == weaponUpgradeToken do
+			if isWeaponMaxLevel() then
+				setAutoWeaponUpgrade(false)
+				break
+			end
 			local remote = getUpgradeRemote("PurchaseWeaponUpgrade")
 			if remote then
 				remote:FireServer()
@@ -229,6 +295,9 @@ local function resetAll()
 	setAutoHealthUpgrade(false)
 	setAutoWaveSkip(false)
 	autoEquipWeaponEnabled = false
+	for skill in pairs(autoSkills) do
+		setAutoSkill(skill, false)
+	end
 
 	for key in pairs(keys) do
 		keys[key] = false
@@ -260,12 +329,17 @@ end)
 RunService.Heartbeat:Connect(function()
 	if not flying or not bodyVelocity or not bodyGyro or not bodyPosition then return end
 	local camera = workspace.CurrentCamera
-	local direction = Vector3.zero
-
-	if keys.W then direction += camera.CFrame.LookVector end
-	if keys.S then direction -= camera.CFrame.LookVector end
-	if keys.A then direction -= camera.CFrame.RightVector end
-	if keys.D then direction += camera.CFrame.RightVector end
+	local direction
+	if UserInputService.TouchEnabled then
+		-- Mobile joystick updates MoveDirection even while PlatformStand is used for flight.
+		direction = humanoid.MoveDirection
+	else
+		direction = Vector3.zero
+		if keys.W then direction += camera.CFrame.LookVector end
+		if keys.S then direction -= camera.CFrame.LookVector end
+		if keys.A then direction -= camera.CFrame.RightVector end
+		if keys.D then direction += camera.CFrame.RightVector end
+	end
 
 	direction = Vector3.new(direction.X, 0, direction.Z)
 	direction = direction.Magnitude > 0 and direction.Unit * flySpeed or Vector3.zero
@@ -563,6 +637,9 @@ local function createRayfieldUI()
 
 	Tabs.Combat:CreateSection({ name = "KillAura" })
 	Tabs.Combat:CreateToggle({ name = "KillAura", flag = "KillAura", value = false, callback = function(value) killAuraEnabled = value; if value then startKillAura() else stopKillAura() end end })
+	noWeaponText, shownWeaponName = "No weapon equipped", nil
+	weaponLabel = Tabs.Combat:CreateText({ name = "Weapon in Use", text = noWeaponText })
+	updateWeaponLabel()
 	Tabs.Combat:CreateToggle({ name = "Auto Wave Skip", flag = "AutoWaveSkip", value = false, callback = setAutoWaveSkip })
 	Tabs.Combat:CreateSlider({ name = "KillAura Range", flag = "KillAuraRange", value = 80, range = { 20, 250 }, increment = 1, callback = function(value) killAuraRange = value end })
 	Tabs.Combat:CreateSlider({ name = "Fire Rate (seconds)", flag = "FireRate", value = 0.1, range = { 0.05, 0.5 }, increment = 0.01, callback = function(value) fireCooldown = value end })
@@ -571,10 +648,26 @@ local function createRayfieldUI()
 	Tabs.Combat:CreateToggle({ name = "Auto Equip Weapon (1)", flag = "AutoEquipWeapon", value = false, description = "Press 1 after upgrading a weapon", callback = function(value) autoEquipWeaponEnabled = value end })
 	Tabs.Combat:CreateToggle({ name = "Auto Upgrade Health", flag = "AutoUpgradeHealth", value = false, callback = setAutoHealthUpgrade })
 	Tabs.Combat:CreateSlider({ name = "Auto Upgrade Rate (seconds)", flag = "AutoUpgradeRate", value = 1, range = { 0.1, 5 }, increment = 0.1, callback = function(value) autoUpgradeDelay = value end })
-	noWeaponText, shownWeaponName = "No weapon equipped", nil
-	weaponLabel = Tabs.Combat:CreateText({ name = "Weapon in Use", text = noWeaponText })
-	updateWeaponLabel()
-
+	Tabs.Combat:CreateSection({ name = "Auto Skills" })
+	for _, skill in ipairs(getCurrentClassGears()) do
+		local config = GearData.GetConfig(skill)
+		local delay = config and config.Cooldown or 1
+		autoSkills[skill] = { enabled = false, delay = delay }
+		Tabs.Combat:CreateToggle({
+			name = "Auto " .. skill,
+			flag = "AutoSkill_" .. skill,
+			value = false,
+			callback = function(value) setAutoSkill(skill, value) end,
+		})
+		Tabs.Combat:CreateSlider({
+			name = skill .. " Delay (seconds)",
+			flag = "AutoSkillDelay_" .. skill,
+			value = delay,
+			range = { 0.1, math.max(30, delay * 2) },
+			increment = 0.1,
+			callback = function(value) autoSkills[skill].delay = value end,
+		})
+	end
 	Tabs.Settings:CreateToggle({ name = "Anti AFK", flag = "AntiAfk", value = false, callback = function(value) antiAfkEnabled = value end })
 	Tabs.Settings:CreateButton({ name = "Boost FPS", callback = function()
 		_G.Settings = { Players = { ["Ignore Me"] = true, ["Ignore Others"] = true, ["Ignore Tools"] = true }, Meshes = { NoMesh = false, NoTexture = false, Destroy = false }, Images = { Invisible = true, Destroy = false }, Explosions = { Smaller = true, Invisible = false, Destroy = false }, Particles = { Invisible = true, Destroy = false }, TextLabels = { LowerQuality = true, Invisible = false, Destroy = false }, MeshParts = { LowerQuality = true, Invisible = false, NoTexture = false, NoMesh = false, Destroy = false }, Other = { ["FPS Cap"] = 360, ["No Camera Effects"] = true, ["No Clothes"] = true, ["Low Water Graphics"] = true, ["No Shadows"] = true, ["Low Rendering"] = true, ["Low Quality Parts"] = true, ["Low Quality Models"] = true, ["Reset Materials"] = true } }
