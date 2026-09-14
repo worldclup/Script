@@ -189,7 +189,7 @@ end
 
 local Window = Rayfield:CreateWindow({
 	name = "DEK DEV HUB", subtitle = "Endless Zombie",
-	sidebarLayout = true, theme = "default", showName = "DEK",
+	sidebarLayout = true, theme = "default", showName = "DEK", showIconOnly = true,
 })
 local Tabs = {
 	Main = Window:CreateTab({ name = "Main" }),
