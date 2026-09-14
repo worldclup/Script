@@ -65,7 +65,7 @@ end
 
 local Window = Rayfield:CreateWindow({
 	name = "DEK DEV HUB", subtitle = "Universal",
-	sidebarLayout = true, theme = "default", showName = "DEK", showIconOnly = true,
+	sidebarLayout = true, theme = "default", showName = "DEK", showIcon = "rbxassetid://97773063258281", showIconOnly = true,
 })
 local Tabs = {
 	Main = Window:CreateTab({ name = "Main" }),
