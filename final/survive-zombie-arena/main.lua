@@ -1,6 +1,4 @@
--- 1. Loading Screen
-loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/components/loading-aw.lua"))()
-local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/gen2"))()
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -174,7 +172,7 @@ local function updateWeaponLabel()
 	local name = weapon and weapon.Name or noWeaponText
 	if weaponLabel and name ~= shownWeaponName then
 		shownWeaponName = name
-		weaponLabel:SetDesc(name)
+		weaponLabel:Set(name)
 	end
 end
 
@@ -544,7 +542,49 @@ localizeTitle("stopAll", SettingsTab:Button({
 
 end
 
-createUI()
+local function createRayfieldUI()
+	Window = Rayfield:CreateWindow({
+		name = "DEK DEV HUB", subtitle = "Survive Zombie Arena", sidebarLayout = true, theme = "default",
+		icon = "rbxassetid://134664151762829", showName = "DEK", showIcon = "rbxassetid://134664151762829", showIconOnly = true,
+	})
+	local Tabs = {
+		Main = Window:CreateTab({ name = "Main" }),
+		Combat = Window:CreateTab({ name = "Combat" }),
+		Settings = Window:CreateTab({ name = "Settings" }),
+	}
+
+	Tabs.Main:CreateSection({ name = "Fly" })
+	Tabs.Main:CreateToggle({ name = "Fly", flag = "Fly", value = false, callback = function(value) if value then startFly() else stopFly() end end })
+	Tabs.Main:CreateSlider({ name = "Fly Speed", flag = "FlySpeed", value = 50, range = { 10, 150 }, increment = 1, callback = function(value) flySpeed = value end })
+	Tabs.Main:CreateSlider({ name = "Fly Height", flag = "FlyHeight", value = 10, range = { 3, 100 }, increment = 1, callback = function(value) if flying and hoverY then hoverY = hoverY + value - flyHeight end; flyHeight = value end })
+	Tabs.Main:CreateSection({ name = "Speed" })
+	Tabs.Main:CreateToggle({ name = "Speed", flag = "Speed", value = false, callback = function(value) speedEnabled = value; humanoid.WalkSpeed = value and walkSpeed or normalSpeed end })
+	Tabs.Main:CreateSlider({ name = "Walk Speed", flag = "WalkSpeed", value = 50, range = { 16, 200 }, increment = 1, callback = function(value) walkSpeed = value; if speedEnabled then humanoid.WalkSpeed = value end end })
+
+	Tabs.Combat:CreateSection({ name = "KillAura" })
+	Tabs.Combat:CreateToggle({ name = "KillAura", flag = "KillAura", value = false, callback = function(value) killAuraEnabled = value; if value then startKillAura() else stopKillAura() end end })
+	Tabs.Combat:CreateToggle({ name = "Auto Wave Skip", flag = "AutoWaveSkip", value = false, callback = setAutoWaveSkip })
+	Tabs.Combat:CreateSlider({ name = "KillAura Range", flag = "KillAuraRange", value = 80, range = { 20, 250 }, increment = 1, callback = function(value) killAuraRange = value end })
+	Tabs.Combat:CreateSlider({ name = "Fire Rate (seconds)", flag = "FireRate", value = 0.1, range = { 0.05, 0.5 }, increment = 0.01, callback = function(value) fireCooldown = value end })
+	Tabs.Combat:CreateSection({ name = "Upgrades" })
+	Tabs.Combat:CreateToggle({ name = "Auto Upgrade Weapon", flag = "AutoUpgradeWeapon", value = false, callback = setAutoWeaponUpgrade })
+	Tabs.Combat:CreateToggle({ name = "Auto Equip Weapon (1)", flag = "AutoEquipWeapon", value = false, description = "Press 1 after upgrading a weapon", callback = function(value) autoEquipWeaponEnabled = value end })
+	Tabs.Combat:CreateToggle({ name = "Auto Upgrade Health", flag = "AutoUpgradeHealth", value = false, callback = setAutoHealthUpgrade })
+	Tabs.Combat:CreateSlider({ name = "Auto Upgrade Rate (seconds)", flag = "AutoUpgradeRate", value = 1, range = { 0.1, 5 }, increment = 0.1, callback = function(value) autoUpgradeDelay = value end })
+	noWeaponText, shownWeaponName = "No weapon equipped", nil
+	weaponLabel = Tabs.Combat:CreateText({ name = "Weapon in Use", text = noWeaponText })
+	updateWeaponLabel()
+
+	Tabs.Settings:CreateToggle({ name = "Anti AFK", flag = "AntiAfk", value = false, callback = function(value) antiAfkEnabled = value end })
+	Tabs.Settings:CreateButton({ name = "Boost FPS", callback = function()
+		_G.Settings = { Players = { ["Ignore Me"] = true, ["Ignore Others"] = true, ["Ignore Tools"] = true }, Meshes = { NoMesh = false, NoTexture = false, Destroy = false }, Images = { Invisible = true, Destroy = false }, Explosions = { Smaller = true, Invisible = false, Destroy = false }, Particles = { Invisible = true, Destroy = false }, TextLabels = { LowerQuality = true, Invisible = false, Destroy = false }, MeshParts = { LowerQuality = true, Invisible = false, NoTexture = false, NoMesh = false, Destroy = false }, Other = { ["FPS Cap"] = 360, ["No Camera Effects"] = true, ["No Clothes"] = true, ["Low Water Graphics"] = true, ["No Shadows"] = true, ["Low Rendering"] = true, ["Low Quality Parts"] = true, ["Low Quality Models"] = true, ["Reset Materials"] = true } }
+		loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/components/boost-fps.lua"))()
+	end })
+	Tabs.Settings:CreateButton({ name = "Stop All & Close UI", callback = function() resetAll(); Window:Unload() end })
+	Tabs.Main:Select()
+end
+
+createRayfieldUI()
 
 player.CharacterAdded:Connect(function(newCharacter)
 	resetAll()
