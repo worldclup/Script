@@ -286,7 +286,7 @@ MainTab:CreateToggle({
 		humanoid.WalkSpeed = value and walkSpeed or normalSpeed
 	end,
 })
-MainTab:CreateSlider({ name = "Walk Speed", flag = "WalkSpeed", range = { 16, 200 }, increment = 1, value = 50, callback = function(value) walkSpeed = value end })
+MainTab:CreateSlider({ name = "Walk Speed", flag = "WalkSpeed", range = { 16, 1000 }, increment = 1, value = 50, callback = function(value) walkSpeed = value end })
 MainTab:CreateSection({ name = "Jump" })
 MainTab:CreateToggle({
 	name = "High Jump", flag = "HighJump", value = false,
