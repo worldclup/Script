@@ -1,6 +1,4 @@
--- 1. Loading Screen
-loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/components/loading-aw.lua"))()
-local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/gen2"))()
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -64,7 +62,11 @@ local function getClosestTarget()
 end
 
 local function getAimPart(model)
-	if aimPartName == "Body" then
+	local selectedPart = aimPartName
+	if selectedPart == "Random" then
+		selectedPart = math.random(1, 2) == 1 and "Head" or "Body"
+	end
+	if selectedPart == "Body" then
 		return model:FindFirstChild("UpperTorso") or model:FindFirstChild("Torso") or model:FindFirstChild("HumanoidRootPart") or model.Head
 	end
 	return model.Head
@@ -82,8 +84,8 @@ local function updateESP()
 		if enabled and not highlights[target.model] then
 			local highlight = Instance.new("Highlight")
 			highlight.Name, highlight.Adornee = "DEK_ESP", target.model
-			highlight.FillColor = target.isBot and Color3.fromRGB(255, 170, 0) or Color3.fromRGB(255, 70, 70)
-			highlight.FillTransparency, highlight.OutlineColor = 0.55, Color3.new(1, 1, 1)
+			highlight.FillColor = target.isBot and Color3.fromRGB(210, 105, 0) or Color3.fromRGB(190, 25, 25)
+			highlight.FillTransparency, highlight.OutlineColor, highlight.OutlineTransparency = 0.25, Color3.new(1, 1, 1), 0.35
 			highlight.DepthMode, highlight.Parent = Enum.HighlightDepthMode.AlwaysOnTop, workspace
 			highlights[target.model] = highlight
 		elseif not enabled and highlights[target.model] then
@@ -229,73 +231,39 @@ local function resetAll()
 	updateLabels()
 end
 
-local Window = WindUI:CreateWindow({
-	Title = "DEK DEV HUB", Author = "Top Sniper", Folder = "Dek_Dev_Hub_Top_Sniper", Icon = "crosshair", Theme = "Dark",
-	OpenButton = { Title = "DEK", CornerRadius = UDim.new(0, 16), StrokeThickness = 2, Color = ColorSequence.new(Color3.fromHex("#30FF6A"), Color3.fromHex("#2f9fff")), Enabled = true, Draggable = true, OnlyMobile = false, Position = UDim2.new(0, 10, 0, 150) },
-	Topbar = { Height = 44, ButtonsType = "Mac" },
+local Window = Rayfield:CreateWindow({
+	name = "DEK DEV HUB", subtitle = "Top Sniper", sidebarLayout = true, theme = "default",
+	icon = "rbxassetid://134664151762829", showName = "DEK", showIcon = "rbxassetid://134664151762829", showIconOnly = true,
 })
-Window:SetToggleKey(Enum.KeyCode.RightControl)
+local Tabs = {
+	Combat = Window:CreateTab({ name = "Combat" }),
+	Visuals = Window:CreateTab({ name = "Visuals" }),
+	Settings = Window:CreateTab({ name = "Settings" }),
+}
 
-local CombatTab = Window:Tab({ Title = "Combat", Icon = "crosshair" })
-local VisualsTab = Window:Tab({ Title = "Visuals", Icon = "eye" })
-local SettingsTab = Window:Tab({ Title = "Settings", Icon = "settings" })
+Tabs.Combat:CreateSection({ name = "Remote Tools" })
+Tabs.Combat:CreateButton({ name = "Capture Shoot Remote (10 seconds)", callback = function()
+	captureCount, captureUntil = 0, os.clock() + 10
+	Rayfield:Notify({ Title = "Remote Capture", Content = "Fire one normal shot within 10 seconds, then check the console.", Duration = 5 })
+end })
+Tabs.Combat:CreateSection({ name = "Aim Assistance" })
+Tabs.Combat:CreateToggle({ name = "Aim Target", flag = "AimTarget", value = false, description = "Selects the closest target inside the FOV.", callback = function(value) aimEnabled = value end })
+Tabs.Combat:CreateToggle({ name = "Silent Aim", flag = "SilentAim", value = false, description = "Redirects Remote 1017 hits to the selected aim part.", callback = function(value) silentAimEnabled = value end })
+Tabs.Combat:CreateDropdown({ name = "Aim Part", flag = "AimPart", options = { "Head", "Body", "Random" }, default = "Head", callback = function(value) aimPartName = value end })
+Tabs.Combat:CreateSlider({ name = "Aim FOV (pixels)", flag = "AimFov", value = 250, range = { 50, 600 }, increment = 10, callback = function(value) aimFov = value end })
+Tabs.Combat:CreateToggle({ name = "Show Aim FOV Circle", flag = "AimFovCircle", value = false, callback = function(value) fovCircleEnabled = value end })
 
-CombatTab:Button({
-	Title = "Capture Shoot Remote (10 seconds)", Icon = "radio",
-	Callback = function()
-		captureCount, captureUntil = 0, os.clock() + 10
-		WindUI:Notify({ Title = "Remote Capture", Content = "ยิงปกติ 1 นัดภายใน 10 วินาที แล้วดู Console", Duration = 5 })
-	end,
-})
-CombatTab:Toggle({ Title = "Aim Target", Desc = "เลือกเป้าในวง FOV สำหรับตรวจ protocol ยิง", Default = false, Callback = function(value) aimEnabled = value end })
-CombatTab:Toggle({ Title = "Silent Aim", Desc = "แก้ hit ของ Remote 1017 ไปที่ Head ในวง FOV", Default = false, Callback = function(value) silentAimEnabled = value end })
-CombatTab:Dropdown({
-	Title = "Aim Part", Values = { "Head", "Body" }, Multi = false, Default = "Head",
-	Callback = function(value) aimPartName = value end,
-})
-CombatTab:Slider({ Title = "Aim FOV (pixels)", Step = 10, Value = { Min = 50, Max = 600, Default = 250 }, Callback = function(value) aimFov = value end })
-CombatTab:Toggle({ Title = "Show Aim FOV Circle", Default = false, Callback = function(value) fovCircleEnabled = value end })
+Tabs.Visuals:CreateSection({ name = "Target Types" })
+Tabs.Visuals:CreateToggle({ name = "Bot ESP", flag = "BotEsp", value = false, description = "Orange: BotFolder", callback = function(value) botEspEnabled = value; updateESP() end })
+Tabs.Visuals:CreateToggle({ name = "Player ESP", flag = "PlayerEsp", value = false, description = "Red: players in Workspace", callback = function(value) playerEspEnabled = value; updateESP() end })
+Tabs.Visuals:CreateSection({ name = "Labels" })
+Tabs.Visuals:CreateToggle({ name = "Show Name", flag = "ShowName", value = false, callback = function(value) showNames = value; updateLabels() end })
+Tabs.Visuals:CreateToggle({ name = "Show Distance", flag = "ShowDistance", value = false, callback = function(value) showDistances = value; updateLabels() end })
+Tabs.Visuals:CreateSection({ name = "Screen Indicators" })
+Tabs.Visuals:CreateToggle({ name = "Tracers", flag = "Tracers", value = false, description = "Lines from the bottom of the screen to each target.", callback = function(value) tracersEnabled = value end })
 
-VisualsTab:Toggle({
-	Title = "Bot ESP", Desc = "สีส้ม: BotFolder", Default = false,
-	Callback = function(value)
-		botEspEnabled = value
-		updateESP()
-	end,
-})
-VisualsTab:Toggle({
-	Title = "Show Name", Default = false,
-	Callback = function(value)
-		showNames = value
-		updateLabels()
-	end,
-})
-VisualsTab:Toggle({
-	Title = "Show Distance", Default = false,
-	Callback = function(value)
-		showDistances = value
-		updateLabels()
-	end,
-})
-VisualsTab:Toggle({
-	Title = "Tracers", Desc = "เส้นจากล่างจอไปยังหัวเป้า", Default = false,
-	Callback = function(value) tracersEnabled = value end,
-})
-VisualsTab:Toggle({
-	Title = "Player ESP", Desc = "สีแดง: ผู้เล่นใน Workspace", Default = false,
-	Callback = function(value)
-		playerEspEnabled = value
-		updateESP()
-	end,
-})
-
-SettingsTab:Button({
-	Title = "Stop All & Close UI", Icon = "circle-x", Color = Color3.fromHex("#ff4830"),
-	Callback = function()
-		resetAll()
-		Window:Destroy()
-	end,
-})
+Tabs.Settings:CreateButton({ name = "Stop All & Close UI", callback = function() resetAll(); Window:Unload() end })
+Tabs.Combat:Select()
 
 player.CharacterAdded:Connect(function(newCharacter)
 	character = newCharacter
