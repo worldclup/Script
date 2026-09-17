@@ -6,6 +6,8 @@ local RunService = game:GetService("RunService")
 local VirtualUser = game:GetService("VirtualUser")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local GuiService = game:GetService("GuiService")
+local UserInputService = game:GetService("UserInputService")
+local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
@@ -142,6 +144,15 @@ local function clickGui(button)
 	end
 	local inset = GuiService:GetGuiInset()
 	local center = button.AbsolutePosition + button.AbsoluteSize / 2 + inset
+	if isMobile then
+		local touchId = 91
+		pcall(function()
+			VirtualInputManager:SendTouchEvent(touchId, 0, center.X, center.Y)
+			task.wait(0.05)
+		end)
+		VirtualInputManager:SendTouchEvent(touchId, 2, center.X, center.Y)
+		return true
+	end
 	VirtualInputManager:SendMouseButtonEvent(center.X, center.Y, 0, true, game, 1)
 	task.wait(0.05)
 	VirtualInputManager:SendMouseButtonEvent(center.X, center.Y, 0, false, game, 1)
@@ -159,10 +170,20 @@ end
 
 local function collectOre(ore)
 	local prompt = ore:FindFirstChildWhichIsA("ProximityPrompt", true)
-	if prompt and type(fireproximityprompt) == "function" then
-		fireproximityprompt(prompt, 2)
-		return "prompt"
+	if prompt then
+		if type(fireproximityprompt) == "function" then
+			fireproximityprompt(prompt, 2)
+			return "prompt"
+		end
+		local held = pcall(function()
+			prompt.HoldDuration = 0
+			prompt:InputHoldBegin()
+			task.wait(0.1)
+			prompt:InputHoldEnd()
+		end)
+		if held then return "hold" end
 	end
+	if isMobile then return "none" end
 	VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
 	task.wait(2)
 	VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
@@ -405,7 +426,7 @@ local function resetAll()
 end
 
 local Window = Rayfield:CreateWindow({
-	name = "DEK DEV HUB", subtitle = "+1 Loot The Force", sidebarLayout = true, theme = "default",
+	name = "DEK DEV HUB", subtitle = "+1 Loot The Force", sidebarLayout = not isMobile, theme = "default",
 	icon = "rbxassetid://134664151762829", showName = "DEK", showIcon = "rbxassetid://134664151762829", showIconOnly = true,
 })
 local Tabs = {}
