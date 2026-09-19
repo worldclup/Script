@@ -481,16 +481,37 @@ petDropdown = UpgradeTab:CreateDropdown({ name = "Pets (ไม่เลือก
 	end
 	feedStatus:Set(#list > 0 and ("เลือก %d ตัว"):format(#list) or "เลือกทุกตัว")
 end })
-UpgradeTab:CreateButton({ name = "Refresh Pet List", callback = function()
+-- อัปเดตรายการ (Age เปลี่ยนตลอด) แล้วเลือกกลับตาม PetKey ที่เคยเลือกไว้
+local lastPetSignature = ""
+local function refreshPetDropdown(force)
 	local options = petOptions()
+	local signature = table.concat(options, "|")
+	if not force and signature == lastPetSignature then return options end
+	lastPetSignature = signature
 	pcall(function() petDropdown:Refresh(options) end)
-	feedStatus:Set(("พบ %d ตัวใน plot ของเรา"):format(#options))
+	local chosen = {}
+	for label, key in pairs(petLabelToKey) do
+		if selectedPets[key] then table.insert(chosen, label) end
+	end
+	pcall(function() petDropdown:Set(chosen) end)
+	return options
+end
+
+UpgradeTab:CreateButton({ name = "Refresh Pet List", callback = function()
+	feedStatus:Set(("พบ %d ตัวใน plot ของเรา"):format(#refreshPetDropdown(true)))
 end })
 UpgradeTab:CreateToggle({ name = "Auto Feed", flag = "AutoFeed", value = false, callback = function(value)
 	autoFeed = value
 	feedStatus:Set("Auto Feed: " .. (value and "ON" or "OFF"))
 end })
 UpgradeTab:CreateSlider({ name = "Feed Delay (วินาที)", flag = "FeedDelay", range = { 0.1, 10 }, increment = 0.1, value = 0.5, callback = function(value) feedDelay = value end })
+
+task.spawn(function()
+	while true do
+		pcall(refreshPetDropdown)
+		task.wait(3)
+	end
+end)
 
 -- ป้อนทีละตัวตามลำดับ ตัวไหน Age ถึง 100 ก็ข้ามไปตัวถัดไป
 task.spawn(function()
