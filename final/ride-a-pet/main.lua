@@ -65,7 +65,7 @@ local function resetAll()
 end
 
 local Window = Rayfield:CreateWindow({
-	name = "DEK DEV HUB", subtitle = "Universal",
+	name = "DEK DEV HUB", subtitle = "Ride A Pet",
 	sidebarLayout = true, theme = "default", icon = "rbxassetid://134664151762829", showName = "DEK", showIcon = "rbxassetid://134664151762829", showIconOnly = true,
 })
 local Tabs = {
