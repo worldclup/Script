@@ -1,7 +1,4 @@
--- 1. Loading Screen
-loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/components/loading-aw.lua"))()
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/gen2"))()
-local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/components/rayfield-windui-adapter.lua"))(Rayfield)
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
@@ -148,7 +145,7 @@ local function updateWeaponLabel()
 	local name = weapon and weapon.Name or "ไม่พบอาวุธ"
 	if weaponLabel and name ~= shownWeaponName then
 		shownWeaponName = name
-		weaponLabel:SetDesc(name)
+		weaponLabel:Set("อาวุธที่ใช้: " .. name)
 	end
 end
 
@@ -316,183 +313,83 @@ local function resetAll()
 end
 
 -- ======================
--- UI (WindUI)
+-- UI (Rayfield)
 -- ======================
-local Window = WindUI:CreateWindow({
-	Title = "DEK DEV HUB",
-	Author = "Survive 99 Zombie",
-	Folder = "Dek_Dev_Hub_v1",
-	Icon = "swords",
-	NewElements = true,
-	HideSearchBar = false,
-	Size = UDim2.fromOffset(580, 460),
-	Theme = "Dark",
-	Resizable = true,
-	OpenButton = {
-		Title = "DEK",
-		CornerRadius = UDim.new(0, 16),
-		StrokeThickness = 2,
-		Color = ColorSequence.new(Color3.fromHex("#30FF6A"), Color3.fromHex("#2f9fff")),
-		Enabled = true,
-		Draggable = true,
-		OnlyMobile = false,
-		Position = UDim2.new(0, 10, 0, 150),
-	},
-	Topbar = {
-		Height = 44,
-		ButtonsType = "Mac",
-	},
-	User = {
-		Enabled = true,
-		Anonymous = false,
-	},
+local Window = Rayfield:CreateWindow({
+	name = "DEK DEV HUB", subtitle = "Survive 99 Zombie",
+	sidebarLayout = true, theme = "default", icon = "rbxassetid://134664151762829", showName = "DEK", showIcon = "rbxassetid://134664151762829", showIconOnly = true,
 })
+local Tabs = {
+	Main = Window:CreateTab({ name = "Main" }),
+	Combat = Window:CreateTab({ name = "Combat" }),
+	Settings = Window:CreateTab({ name = "Settings" }),
+}
+local MainTab, CombatTab, SettingsTab = Tabs.Main, Tabs.Combat, Tabs.Settings
 
-Window:SetToggleKey(Enum.KeyCode.RightControl)
+MainTab:CreateSection({ name = "Fly" })
+MainTab:CreateToggle({ name = "Fly (ลอยค้างอัตโนมัติ)", flag = "Fly", value = false, callback = function(value)
+	if value then startFly() else stopFly() end
+end })
+MainTab:CreateSlider({ name = "Fly Speed", flag = "FlySpeed", range = { 10, 150 }, increment = 1, value = 50, callback = function(value) flySpeed = value end })
+MainTab:CreateSlider({ name = "Fly Height", flag = "FlyHeight", range = { 3, 100 }, increment = 1, value = 10, callback = function(value)
+	if flying and hoverY then hoverY = hoverY + (value - flyHeight) end
+	flyHeight = value
+end })
 
-local MainTab = Window:Tab({ Title = "Main", Icon = "house" })
-local CombatTab = Window:Tab({ Title = "Combat", Icon = "crosshair" })
-local SettingsTab = Window:Tab({ Title = "Settings", Icon = "settings" })
+MainTab:CreateSection({ name = "Speed" })
+MainTab:CreateToggle({ name = "Speed", flag = "Speed", value = false, callback = function(value)
+	speedEnabled = value
+	humanoid.WalkSpeed = value and walkSpeed or normalSpeed
+end })
+MainTab:CreateSlider({ name = "Walk Speed", flag = "WalkSpeed", range = { 16, 200 }, increment = 1, value = 50, callback = function(value)
+	walkSpeed = value
+	if speedEnabled then humanoid.WalkSpeed = walkSpeed end
+end })
 
-MainTab:Toggle({
-	Title = "เปิดลอย (ลอยค้างอัตโนมัติ)",
-	Default = false,
-	Callback = function(value)
-		if value then
-			startFly()
-			WindUI:Notify({ Title = "Fly", Content = "เปิดลอยแล้ว", Duration = 3 })
-		else
-			stopFly()
-			WindUI:Notify({ Title = "Fly", Content = "ปิดลอยแล้ว", Duration = 3 })
-		end
-	end,
-})
+CombatTab:CreateSection({ name = "KillAura" })
+weaponLabel = CombatTab:CreateText({ name = "Weapon", text = "อาวุธที่ใช้: ไม่พบอาวุธ" })
+CombatTab:CreateToggle({ name = "KillAura", flag = "KillAura", value = false, callback = function(value)
+	killAuraEnabled = value
+	if value then startKillAura() else stopKillAura() end
+end })
+CombatTab:CreateSlider({ name = "ระยะ KillAura", flag = "KillAuraRange", range = { 20, 250 }, increment = 1, value = 80, callback = function(value) killAuraRange = value end })
+CombatTab:CreateSlider({ name = "ความเร็วยิง (วินาที)", flag = "FireCooldown", range = { 0.05, 0.5 }, increment = 0.01, value = 0.1, callback = function(value) fireCooldown = value end })
 
-MainTab:Slider({
-	Title = "ความเร็วลอย",
-	Step = 1,
-	Value = { Min = 10, Max = 150, Default = 50 },
-	Callback = function(value) flySpeed = value end,
-})
+CombatTab:CreateSection({ name = "Auto Upgrade" })
+CombatTab:CreateToggle({ name = "Auto Upgrade (เลี่ยง Robux)", flag = "AutoUpgrade", value = false, callback = setAutoUpgrade })
+CombatTab:CreateSlider({ name = "Upgrade Delay (วินาที)", flag = "AutoUpgradeDelay", range = { 0.1, 5 }, increment = 0.1, value = 1, callback = function(value) autoUpgradeDelay = value end })
 
-MainTab:Slider({
-	Title = "ความสูงที่ลอย",
-	Step = 1,
-	Value = { Min = 3, Max = 100, Default = 10 },
-	Callback = function(value)
-		if flying and hoverY then
-			hoverY = hoverY + (value - flyHeight)
-		end
-		flyHeight = value
-	end,
-})
+SettingsTab:CreateToggle({ name = "Anti AFK", flag = "AntiAfk", value = false, callback = function(value) antiAfkEnabled = value end })
+SettingsTab:CreateButton({ name = "Boost FPS", callback = function()
+	_G.Settings = {
+		Players = { ["Ignore Me"] = true, ["Ignore Others"] = true, ["Ignore Tools"] = true },
+		Meshes = { NoMesh = false, NoTexture = false, Destroy = false },
+		Images = { Invisible = true, Destroy = false },
+		Explosions = { Smaller = true, Invisible = false, Destroy = false },
+		Particles = { Invisible = true, Destroy = false },
+		TextLabels = { LowerQuality = true, Invisible = false, Destroy = false },
+		MeshParts = { LowerQuality = true, Invisible = false, NoTexture = false, NoMesh = false, Destroy = false },
+		Other = {
+			["FPS Cap"] = 360,
+			["No Camera Effects"] = true,
+			["No Clothes"] = true,
+			["Low Water Graphics"] = true,
+			["No Shadows"] = true,
+			["Low Rendering"] = true,
+			["Low Quality Parts"] = true,
+			["Low Quality Models"] = true,
+			["Reset Materials"] = true,
+		},
+	}
+	loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/components/boost-fps.lua"))()
+end })
+SettingsTab:CreateButton({ name = "Stop All & Close UI", callback = function()
+	resetAll()
+	Window:Unload()
+end })
 
-MainTab:Divider()
-
-MainTab:Toggle({
-	Title = "เปิดวิ่งไว (Speed)",
-	Default = false,
-	Callback = function(value)
-		speedEnabled = value
-		humanoid.WalkSpeed = value and walkSpeed or normalSpeed
-	end,
-})
-
-MainTab:Slider({
-	Title = "ความเร็ววิ่ง",
-	Step = 1,
-	Value = { Min = 16, Max = 200, Default = 50 },
-	Callback = function(value)
-		walkSpeed = value
-		if speedEnabled then humanoid.WalkSpeed = walkSpeed end
-	end,
-})
-
-CombatTab:Toggle({
-	Title = "KillAura",
-	Default = false,
-	Callback = function(value)
-		killAuraEnabled = value
-		if value then
-			startKillAura()
-			WindUI:Notify({ Title = "KillAura", Content = "เปิดแล้ว", Duration = 3 })
-		else
-			stopKillAura()
-			WindUI:Notify({ Title = "KillAura", Content = "ปิดแล้ว", Duration = 3 })
-		end
-	end,
-})
-
-CombatTab:Slider({
-	Title = "ระยะ KillAura",
-	Step = 1,
-	Value = { Min = 20, Max = 250, Default = 80 },
-	Callback = function(value) killAuraRange = value end,
-})
-
-CombatTab:Slider({
-	Title = "ความเร็วยิง (วินาที)",
-	Step = 0.01,
-	Value = { Min = 0.05, Max = 0.5, Default = 0.1 },
-	Callback = function(value) fireCooldown = value end,
-})
-
-CombatTab:Divider()
-
-CombatTab:Toggle({
-	Title = "Auto Upgrade (เลี่ยง Robux)",
-	Default = false,
-	Callback = setAutoUpgrade,
-})
-
-CombatTab:Slider({
-	Title = "ความเร็ว Auto Upgrade (วินาที/รอบ)",
-	Step = 0.1,
-	Value = { Min = 0.1, Max = 5, Default = 1 },
-	Callback = function(value) autoUpgradeDelay = value end,
-})
-
-CombatTab:Divider()
-weaponLabel = CombatTab:Paragraph({ Title = "อาวุธที่ใช้", Desc = "ไม่พบอาวุธ" })
 updateWeaponLabel()
-
-SettingsTab:Toggle({
-	Title = "Anti AFK",
-	Desc = "ป้องกันการถูกเตะเมื่อไม่ได้ขยับ",
-	Default = false,
-	Callback = function(value)
-		antiAfkEnabled = value
-	end,
-})
-
-SettingsTab:Button({
-	Title = "Boost FPS",
-	Icon = "zap",
-	Color = Color3.fromHex("#30FF6A"),
-	Callback = function()
-		_G.Settings = {
-			Players = { ["Ignore Me"] = true, ["Ignore Others"] = true, ["Ignore Tools"] = true },
-			Meshes = { NoMesh = false, NoTexture = false, Destroy = false },
-			Images = { Invisible = true, Destroy = false },
-			Explosions = { Smaller = true, Invisible = false, Destroy = false },
-			Particles = { Invisible = true, Destroy = false },
-			TextLabels = { LowerQuality = true, Invisible = false, Destroy = false },
-			MeshParts = { LowerQuality = true, Invisible = false, NoTexture = false, NoMesh = false, Destroy = false },
-			Other = {
-				["FPS Cap"] = 360,
-				["No Camera Effects"] = true,
-				["No Clothes"] = true,
-				["Low Water Graphics"] = true,
-				["No Shadows"] = true,
-				["Low Rendering"] = true,
-				["Low Quality Parts"] = true,
-				["Low Quality Models"] = true,
-				["Reset Materials"] = true,
-			},
-		}
-		loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/components/boost-fps.lua"))()
-	end,
-})
+Tabs.Main:Select()
 
 -- ======================
 -- รีเซ็ต

@@ -4,6 +4,7 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local VirtualUser = game:GetService("VirtualUser")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TeleportService = game:GetService("TeleportService")
 
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
@@ -229,6 +230,14 @@ end })
 if type(hookmetamethod) == "function" and type(newcclosure) == "function" and type(getnamecallmethod) == "function" then
 	local oldNamecall
 	oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+		-- เกมมีสคริปต์ TeleportBackOnAFK ที่เด้งกลับเองทุก ~18 นาทีแม้ขยับตัวอยู่ (บั๊กของมันเอง)
+		if antiAfkEnabled and self == TeleportService and (type(checkcaller) ~= "function" or not checkcaller()) then
+			local method = getnamecallmethod()
+			if (method == "Teleport" or method == "TeleportToPlaceInstance") and (...) == game.PlaceId then
+				warn("[Anti AFK] บล็อกการ rejoin อัตโนมัติจากเกม")
+				return
+			end
+		end
 		if remoteCaptureEnabled and #remoteCaptures + #remoteQueue < 25 and getnamecallmethod() == "FireServer" and (type(checkcaller) ~= "function" or not checkcaller()) then
 			table.insert(remoteQueue, { remote = self, args = table.pack(...), capturedAt = os.date("!%Y-%m-%dT%H:%M:%SZ") })
 		end
