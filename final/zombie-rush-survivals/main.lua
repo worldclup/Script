@@ -1,6 +1,7 @@
 -- 1. Loading Screen
 loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/components/loading-aw.lua"))()
-local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/gen2"))()
+local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/worldclup/Script/refs/heads/main/components/rayfield-windui-adapter.lua"))(Rayfield)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
