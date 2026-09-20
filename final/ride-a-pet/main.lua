@@ -56,6 +56,8 @@ player.Idled:Connect(function()
 	end
 end)
 
+local espCleanup -- ประกาศไว้ก่อน ส่วน ESP อยู่ท้ายไฟล์แต่ปุ่ม Stop อยู่ด้านบน
+
 local function resetAll()
 	speedEnabled, flyEnabled, jumpEnabled, antiAfkEnabled, autoUpgrade, autoCollect = false, false, false, false, false, false
 	humanoid.WalkSpeed = normalSpeed
@@ -70,7 +72,7 @@ local Window = Rayfield:CreateWindow({
 })
 local Tabs = {
 	Main = Window:CreateTab({ name = "Main" }),
-	Pet = Window:CreateTab({ name = "Pet" }),
+	Pet = Window:CreateTab({ name = "Catch Pet" }),
 	Upgrade = Window:CreateTab({ name = "Upgrade" }),
 	BuySell = Window:CreateTab({ name = "Buy & Sell" }),
 	Inspect = Window:CreateTab({ name = "Inspect / Export" }),
@@ -328,6 +330,7 @@ SettingsTab:CreateButton({
 		remoteCaptureEnabled = false
 		autoUpgrade = false
 		inspectClosed, inspectCancel = true, true
+		if espCleanup then espCleanup() end
 		Window:Unload()
 	end,
 })
@@ -629,6 +632,18 @@ local function luckText(value)
 	return ("%d"):format(value)
 end
 
+-- ค่า Luck จาก GameData เชื่อถือได้กว่าข้อความบนป้าย (ป้ายอาจยังไม่โหลด/รูปแบบต่าง)
+local function eggLuck(egg)
+	local info = eggData[egg.Name]
+	if info and info.Luck then return info.Luck end
+	for name, data in pairs(eggData) do
+		if egg.Name:find(name, 1, true) and data.Luck then return data.Luck end
+	end
+	local handle = egg:FindFirstChild("Handle")
+	local label = handle and handle:FindFirstChild("EggLuck") and handle.EggLuck:FindFirstChild("Luck")
+	return label and luckValue(label.Text) or 0
+end
+
 -- กด CanCollide ลงทุกเฟรม ไม่ใช่ครั้งเดียว: พาร์ทที่เกมเพิ่ม/รีเซ็ตทีหลังก็ยังทะลุ
 local function setNoclip(enabled)
 	if not enabled and noclipAlways then return end
@@ -765,16 +780,151 @@ task.spawn(function()
 			local target, targetDistance
 			if folder and root then
 				for _, egg in ipairs(folder:GetChildren()) do
-					local luck = egg:FindFirstChild("Handle") and egg.Handle:FindFirstChild("EggLuck") and egg.Handle.EggLuck:FindFirstChild("Luck")
 					local position = getPosition(egg)
 					local distance = position and (root.Position - position).Magnitude
-					if luck and distance and luckValue(luck.Text) >= minimumLuck and rarityAllowed(egg.Name) and (not targetDistance or distance < targetDistance) then target, targetDistance = egg, distance end
+					if distance and eggLuck(egg) >= minimumLuck and rarityAllowed(egg.Name) and (not targetDistance or distance < targetDistance) then target, targetDistance = egg, distance end
 				end
 			end
 			if target then collectStatus:Set("กำลังเก็บ: " .. target.Name); collectEgg(target) else task.wait(0.5) end
 		else task.wait(0.5) end
 	end
 end)
+
+-- ===== ESP =====
+local espBox, espName, espLuck, espDistance, espTracer, espRarityOn = false, false, false, false, false, false
+local espRarities = {}
+local espObjects = {}
+
+local espGui = Instance.new("ScreenGui")
+espGui.Name = "EggESP"
+espGui.ResetOnSpawn = false
+espGui.IgnoreGuiInset = true
+espGui.DisplayOrder = 10
+pcall(function()
+	espGui.Parent = (type(gethui) == "function" and gethui()) or player:WaitForChild("PlayerGui")
+end)
+
+local function espPart(egg)
+	if egg:IsA("BasePart") then return egg end
+	return egg.PrimaryPart or egg:FindFirstChildWhichIsA("BasePart", true)
+end
+
+local function espCreate(egg, part)
+	local highlight = Instance.new("Highlight")
+	highlight.FillTransparency = 1
+	highlight.OutlineColor = Color3.fromRGB(0, 255, 140)
+	highlight.Adornee = egg
+	highlight.Parent = espGui
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Adornee = part
+	billboard.Size = UDim2.fromOffset(200, 44)
+	billboard.StudsOffset = Vector3.new(0, 3, 0)
+	billboard.AlwaysOnTop = true
+	billboard.Parent = espGui
+
+	local label = Instance.new("TextLabel")
+	label.BackgroundTransparency = 1
+	label.Size = UDim2.fromScale(1, 1)
+	label.Font = Enum.Font.GothamBold
+	label.TextSize = 13
+	label.TextColor3 = Color3.fromRGB(255, 255, 255)
+	label.TextStrokeTransparency = 0.4
+	label.Parent = billboard
+
+	local line = Instance.new("Frame")
+	line.AnchorPoint = Vector2.new(0.5, 0.5)
+	line.BorderSizePixel = 0
+	line.BackgroundColor3 = Color3.fromRGB(0, 255, 140)
+	line.Visible = false
+	line.Parent = espGui
+
+	local entry = { highlight = highlight, billboard = billboard, label = label, line = line }
+	espObjects[egg] = entry
+	return entry
+end
+
+local function espDestroy(egg)
+	local entry = espObjects[egg]
+	if not entry then return end
+	entry.highlight:Destroy()
+	entry.billboard:Destroy()
+	entry.line:Destroy()
+	espObjects[egg] = nil
+end
+
+PetTab:CreateSection({ name = "ESP" })
+PetTab:CreateText({ name = "ESP", text = "แสดงไข่ใน workspace.RenderedEggs" })
+PetTab:CreateToggle({ name = "กรอบ (Box)", flag = "EspBox", value = false, callback = function(value) espBox = value end })
+PetTab:CreateToggle({ name = "ชื่อ", flag = "EspName", value = false, callback = function(value) espName = value end })
+PetTab:CreateToggle({ name = "Luck", flag = "EspLuck", value = false, callback = function(value) espLuck = value end })
+PetTab:CreateToggle({ name = "Rarity", flag = "EspRarity", value = false, callback = function(value) espRarityOn = value end })
+PetTab:CreateToggle({ name = "ระยะทาง", flag = "EspDistance", value = false, callback = function(value) espDistance = value end })
+PetTab:CreateToggle({ name = "เส้น (Tracer)", flag = "EspTracer", value = false, callback = function(value) espTracer = value end })
+PetTab:CreateDropdown({ name = "ESP Rarity Filter (ไม่เลือก = ทุกระดับ)", flag = "EspRarityFilter", options = rarityOrder, multiSelect = true, value = {}, callback = function(value)
+	table.clear(espRarities)
+	local list = type(value) == "table" and value or { value }
+	for _, rarity in ipairs(list) do espRarities[rarity] = true end
+end })
+
+local espConnection
+espConnection = RunService.RenderStepped:Connect(function()
+	local anyOn = espBox or espName or espLuck or espRarityOn or espDistance or espTracer
+	local folder = workspace:FindFirstChild("RenderedEggs")
+	local camera = workspace.CurrentCamera
+	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	local seen = {}
+
+	if anyOn and folder and camera then
+		local origin = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y)
+		for _, egg in ipairs(folder:GetChildren()) do
+			local part = espPart(egg)
+			local position = part and part.Position
+			local rarity = eggRarity(egg.Name)
+			local show = not next(espRarities) or (rarity ~= nil and espRarities[rarity])
+			if position and show then
+				seen[egg] = true
+				local entry = espObjects[egg] or espCreate(egg, part)
+				entry.highlight.Enabled = espBox
+
+				local parts = {}
+				if espName then table.insert(parts, egg.Name) end
+				if espRarityOn then table.insert(parts, rarity or "Unknown") end
+				if espLuck then table.insert(parts, luckText(eggLuck(egg))) end
+				if espDistance and root then table.insert(parts, ("%.0fm"):format((root.Position - position).Magnitude)) end
+				entry.label.Text = table.concat(parts, " | ")
+				entry.billboard.Enabled = #parts > 0
+
+				if espTracer then
+					local screen, onScreen = camera:WorldToViewportPoint(position)
+					if onScreen then
+						local target = Vector2.new(screen.X, screen.Y)
+						local delta = target - origin
+						entry.line.Size = UDim2.fromOffset(delta.Magnitude, 1)
+						entry.line.Position = UDim2.fromOffset((origin.X + target.X) / 2, (origin.Y + target.Y) / 2)
+						entry.line.Rotation = math.deg(math.atan2(delta.Y, delta.X))
+						entry.line.Visible = true
+					else
+						entry.line.Visible = false
+					end
+				else
+					entry.line.Visible = false
+				end
+			end
+		end
+	end
+
+	for egg in pairs(espObjects) do
+		if not seen[egg] then espDestroy(egg) end
+	end
+end)
+
+espCleanup = function()
+	espBox, espName, espLuck, espRarityOn, espDistance, espTracer = false, false, false, false, false, false
+	if espConnection then espConnection:Disconnect(); espConnection = nil end
+	for egg in pairs(espObjects) do espDestroy(egg) end
+	espGui:Destroy()
+end
 
 Tabs.Main:Select()
 
