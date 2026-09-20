@@ -6,8 +6,11 @@ local scripts = {
 	[133438949159785] = "endless-zombies/main.lua",
 	[118805555015549] = "loot-to-forge/main.lua",
 	[124216119978534] = "ride-a-pet/main.lua",
+	[80651946374810] = "survive-99-zombie-waves/main.lua",
 	[114204398207377] = "survive-zombie-arena/main.lua",
 	[119214646022567] = "top-sniper/main.lua",
+	[80610578881227] = "zombie-island/main.lua",
+	[82457571485380] = "zombie-rush-survivals/main.lua",
 }
 
 local path = scripts[game.PlaceId] or "all-game/main.lua"
