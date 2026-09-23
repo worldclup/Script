@@ -65,18 +65,19 @@ local function resetAll()
 end
 
 local Window = Rayfield:CreateWindow({
-	name = "DEK DEV HUB", subtitle = "Pyramid",
+	name = "DEK DEV HUB", subtitle = "Build a Pyramid!",
 	sidebarLayout = true, theme = "default", icon = "rbxassetid://134664151762829", showName = "DEK", showIcon = "rbxassetid://134664151762829", showIconOnly = true,
 })
 local Tabs = {
 	Main = Window:CreateTab({ name = "Main" }),
 	Pyramid = Window:CreateTab({ name = "Pyramid" }),
 	Upgrade = Window:CreateTab({ name = "Upgrade" }),
+	Train = Window:CreateTab({ name = "Train" }),
 	Inspect = Window:CreateTab({ name = "Inspect / Export" }),
 	Settings = Window:CreateTab({ name = "Settings" }),
 }
 local MainTab, InspectTab, SettingsTab = Tabs.Main, Tabs.Inspect, Tabs.Settings
-local PyramidTab, UpgradeTab = Tabs.Pyramid, Tabs.Upgrade
+local PyramidTab, UpgradeTab, TrainTab = Tabs.Pyramid, Tabs.Upgrade, Tabs.Train
 
 local inspectRoot, inspectDepth, inspectLimit = "Workspace", 5, 3000
 local inspectBusy, inspectCancel, inspectClosed = false, false, false
@@ -431,8 +432,11 @@ local gapAim, gapCache, gapCacheAt = true, nil, 0
 local gapStep, gapFolder, gapLayer = 0, nil, 1
 local failedSpots, failCooldown = {}, 45
 local floatEnabled, floatHeight, floatSpeed = true, 1, 80
+local autoJump = true
+local walkLastPos, walkStuckSince, walkJumpAt = nil, nil, 0
 local floatMover, floatAnchorY
 local noclipStates, noclipConnection = {}, nil
+local trainingActive = false
 local pyramidStatus = PyramidTab:CreateText({ name = "Pyramid", text = "กด Auto เพื่อวนเก็บหิน/วางหิน" })
 
 local function region(name)
@@ -605,6 +609,13 @@ local function nextGapPoint()
 	return Vector3.new(pick.X, root.Position.Y, pick.Z)
 end
 
+-- ผิวบนของแผ่นชั้นปัจจุบัน = ความสูงที่ควรไปยืน (วาร์ป/ลอย จะได้ไม่ไปโผล่ใต้ชั้นแล้วตกแมพ)
+local function layerSurfaceY()
+	local slab = layerSlab(currentLayerNumber())
+	if not slab then return nil end
+	return slab.Position.Y + slab.Size.Y / 2
+end
+
 -- อยู่ในพื้นที่ของแผ่นชั้นนี้หรือยัง (ใช้ตัดสินว่าจะเริ่มกด E วางได้แล้ว)
 local function insideBuild()
 	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
@@ -745,39 +756,126 @@ local function setNoclip(enabled)
 	end
 end
 
+-- ความสูงของพื้น/ก้อนหินจริงที่จุดหนึ่ง (ไม่ใช่ผิวของ LayerSlab ซึ่งอยู่แค่ระดับฐาน)
+local function groundYAt(point)
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { player.Character }
+	params.IgnoreWater = true
+	local result = workspace:Raycast(Vector3.new(point.X, point.Y + 300, point.Z), Vector3.new(0, -600, 0), params)
+	return result and result.Position.Y or nil
+end
+
+-- มีอะไรขวางข้างหน้าในระยะ studs ที่กำหนดไหม (ยิงทั้งระดับเอวและระดับเท้า)
+local function blockedAhead(root, direction, reach)
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { player.Character }
+	params.IgnoreWater = true
+	for _, offsetY in ipairs({ 0, -1.5 }) do
+		local from = root.Position + Vector3.new(0, offsetY, 0)
+		if workspace:Raycast(from, direction * reach, params) then return true end
+	end
+	return false
+end
+
+-- เกมบางเกมปิดสถานะกระโดดหรือกด JumpPower เหลือ 0 จึงปลดล็อกแล้วสั่งหลายทางพร้อมกัน
+local function forceJump(currentHumanoid)
+	pcall(function() currentHumanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true) end)
+	pcall(function() currentHumanoid:SetStateEnabled(Enum.HumanoidStateType.Freefall, true) end)
+	if currentHumanoid.UseJumpPower then
+		if currentHumanoid.JumpPower < 50 then currentHumanoid.JumpPower = 50 end
+	elseif currentHumanoid.JumpHeight < 7 then
+		currentHumanoid.JumpHeight = 7
+	end
+	currentHumanoid.Jump = true
+	pcall(function() currentHumanoid:ChangeState(Enum.HumanoidStateType.Jumping) end)
+	VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+	VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+end
+
 -- ไปหาจุดหมาย: ลอย / เดิน / วาร์ป แล้วบอกว่าถึงหรือยัง
-local function goTo(position)
+-- surfaceY = ความสูงผิวที่ต้องไปยืน (ใส่มาเฉพาะตอนวางบนชั้นพีระมิด)
+local function goTo(position, surfaceY)
 	local currentCharacter = player.Character
 	local currentHumanoid = currentCharacter and currentCharacter:FindFirstChildOfClass("Humanoid")
 	local root = currentCharacter and currentCharacter:FindFirstChild("HumanoidRootPart")
 	if not currentHumanoid or not root or not position then return false, 0 end
 
-	local distance = (root.Position - position).Magnitude
+	-- วัดแนวราบล้วน ๆ ความสูงต่างกันไม่ควรทำให้ "ยังไม่ถึง"
+	local flat = Vector3.new(position.X - root.Position.X, 0, position.Z - root.Position.Z)
+	local distance = flat.Magnitude
 	local arrived = distance <= arriveRadius
 
 	if useTeleport then
 		if floatMover then setFloat(false) end
-		if not arrived then root.CFrame = CFrame.new(position + Vector3.new(0, 4, 0)) end
+		-- ยกขึ้นเหนือผิวชั้นเสมอ ไม่งั้นวาร์ปไปโผล่ใต้ Layer แล้วร่วง
+		local landingY = (surfaceY or position.Y) + 5
+		if not arrived then root.CFrame = CFrame.new(position.X, landingY, position.Z) end
 		return arrived, distance
 	end
 
 	if not floatEnabled then
 		if floatMover then setFloat(false) end
 		currentHumanoid.WalkSpeed = moveSpeed
-		if arrived then currentHumanoid:Move(Vector3.zero, false) else currentHumanoid:MoveTo(position) end
-		return arrived, distance
+
+		-- ปีนเฉพาะตอนไปวางบนชั้น (surfaceY มีค่า) และต้องใกล้พอแล้วเท่านั้น
+		-- ที่ Quarry ยอดกองหินสูงมาก ถ้าไม่กันไว้จะเข้าใจผิดว่าต้องปีนตลอดแล้วกระโดดรัวไม่หยุด
+		local needClimb = false
+		if autoJump and surfaceY and distance < 15 then
+			local feetY = root.Position.Y - (currentHumanoid.HipHeight + root.Size.Y / 2)
+			local targetGround = groundYAt(position)
+			local rise = targetGround and targetGround - feetY or 0
+			needClimb = rise > 1.5 and rise < 15
+		end
+
+		if arrived and not needClimb then
+			currentHumanoid:Move(Vector3.zero, false)
+			walkLastPos, walkStuckSince = nil, nil
+			return arrived, distance
+		end
+
+		local now = os.clock()
+		if autoJump then
+			-- ขยับได้น้อยกว่า 0.5 studs ระหว่างรอบ = ติดขอบชั้น/ก้อนหินอยู่
+			if walkLastPos and (root.Position - walkLastPos).Magnitude < 0.5 then
+				walkStuckSince = walkStuckSince or now
+			else
+				walkStuckSince = nil
+			end
+			walkLastPos = root.Position
+			local stuck = walkStuckSince and now - walkStuckSince or 0
+
+			-- กระโดดเมื่อ "ขยับไม่ไปจริง ๆ" หรือกำลังจะปีนขึ้นชั้นเท่านั้น
+			-- (ไม่ใช้ blockedAhead เป็นตัวจุดเอง เพราะยืนข้างกองหินก็โดนตลอด)
+			local forward = distance > 0.1 and flat.Unit or root.CFrame.LookVector
+			local jamming = stuck > 0.2 and blockedAhead(root, forward, 4)
+			if (jamming or needClimb) and now - walkJumpAt > 0.25 then
+				forceJump(currentHumanoid)
+				walkJumpAt = now
+			end
+		end
+		-- ต้องปีนขึ้นก็เดินชนขอบไว้ ไม่งั้นกระโดดแล้วไม่มีแรงไปข้างหน้า
+		currentHumanoid:MoveTo(needClimb and (root.Position + (distance > 0.1 and flat.Unit or root.CFrame.LookVector) * 6) or position)
+		return arrived and not needClimb, distance
 	end
 
 	if not floatMover or floatMover.Parent ~= root then setFloat(true) end
 	if floatMover then
-		local offset = Vector3.new(position.X - root.Position.X, 0, position.Z - root.Position.Z)
-		local horizontal = (arrived or offset.Magnitude < 1) and Vector3.zero
-			or offset.Unit * math.min(floatSpeed, offset.Magnitude * 4)
+		local horizontal = (arrived or flat.Magnitude < 1) and Vector3.zero
+			or flat.Unit * math.min(floatSpeed, flat.Magnitude * 4)
+		-- ชั้นสูงขึ้นก็ยกตัวตามผิวชั้น ไม่ค้างอยู่ระดับเดิมจนมุดเข้าไปในก้อน
+		if surfaceY then floatAnchorY = surfaceY + floatHeight + 3 end
 		if not floatAnchorY then floatAnchorY = root.Position.Y + floatHeight end
 		local verticalY = (floatAnchorY - root.Position.Y) * 6
 		floatMover.Velocity = Vector3.new(horizontal.X, math.clamp(verticalY, -40, 40), horizontal.Z)
 	end
 	return arrived, distance
+end
+
+local function currentPosition()
+	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	return root and root.Position
 end
 
 PyramidTab:CreateToggle({ name = "Auto เก็บหิน / วางหิน", flag = "AutoPyramid", value = false, callback = function(value)
@@ -793,6 +891,8 @@ PyramidTab:CreateToggle({ name = "Auto เก็บหิน / วางหิ�
 		if currentHumanoid then currentHumanoid.WalkSpeed = speedEnabled and walkSpeed or normalSpeed end
 	end
 end })
+
+-- ===== 1. การเคลื่อนที่: ลอย / วาร์ป / เดิน อยู่ด้วยกัน =====
 PyramidTab:CreateSection({ name = "การเคลื่อนที่" })
 PyramidTab:CreateToggle({ name = "ลอยแทนการวิ่ง", flag = "FloatMove", value = true, description = "WalkSpeed ถูกเกมล็อก จึงขยับด้วย BodyVelocity แทน", callback = function(value)
 	floatEnabled = value
@@ -807,21 +907,26 @@ PyramidTab:CreateButton({ name = "ตั้งความสูงลอย = �
 	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 	if root then floatAnchorY = root.Position.Y; pyramidStatus:Set(("ล็อกความสูงที่ Y = %.1f"):format(floatAnchorY)) end
 end })
+PyramidTab:CreateToggle({ name = "วาร์ปแทนการเดิน", flag = "PyramidTeleport", value = false, description = "เร็วกว่าแต่เสี่ยงโดนตรวจมากกว่า (ปิดการลอยชั่วคราว)", callback = function(value) useTeleport = value end })
 PyramidTab:CreateToggle({ name = "Noclip (ทะลุทุกอย่าง)", flag = "Noclip", value = false, callback = setNoclip })
 PyramidTab:CreateSlider({ name = "ความไวเดิน (ใช้เมื่อปิดลอย)", flag = "PyramidSpeed", range = { 16, 300 }, increment = 2, value = 60, callback = function(value) moveSpeed = value end })
+PyramidTab:CreateToggle({ name = "เดินติดแล้วกระโดด", flag = "AutoJump", value = true, description = "ใช้ตอนปิดลอย: กระโดดขึ้นชั้นที่สูงกว่า และกระโดดข้ามสิ่งที่ขวาง", callback = function(value)
+	autoJump = value
+	walkStuckSince = nil
+end })
 PyramidTab:CreateSlider({ name = "ระยะที่ถือว่าถึงแล้ว (studs)", flag = "ArriveRadius", range = { 2, 30 }, increment = 1, value = 6, callback = function(value) arriveRadius = value end })
+PyramidTab:CreateButton({ name = "ไป Quarry", callback = function() goTo(regionPosition("Quarry")) end })
+PyramidTab:CreateButton({ name = "ไป Pyramid", callback = function() goTo(regionPosition("Pyramid"), layerSurfaceY()) end })
+
+-- ===== 2. การกดปุ่ม: ทุกอย่างที่เกี่ยวกับ E อยู่ด้วยกัน =====
+PyramidTab:CreateSection({ name = "การกดปุ่ม E" })
 PyramidTab:CreateToggle({ name = "กด E ค้างยาวจนหมด", flag = "HoldContinuous", value = true, description = "ปิดถ้าเกมนับเป็นครั้ง ๆ แล้วจะกดเป็นจังหวะแทน", callback = function(value)
 	holdContinuous = value
 	setHold(false)
 end })
-PyramidTab:CreateSlider({ name = "กดค้างครั้งละ (วินาที)", flag = "HoldTime", range = { 0.05, 3 }, increment = 0.05, value = 0.35, description = "ใช้เมื่อปิด 'ค้างยาว'", callback = function(value) holdTime = value end })
-PyramidTab:CreateToggle({ name = "ตอนวางกด E เอง (เกมไม่มีปุ่มขึ้น)", flag = "BlindPlace", value = true, description = "กด E รัว ๆ ระหว่างวนอยู่ในกรอบ PyramidBuild", callback = function(value)
-	blindPlace = value
-	setHold(false)
-end })
-PyramidTab:CreateSlider({ name = "เก็บไม่คืบหน้ากี่วิถึงไปวาง", flag = "CollectTimeout", range = { 3, 60 }, increment = 1, value = 8, description = "ตัวนับหยุดขยับ = เต็มมือแล้ว", callback = function(value) collectTimeout = value end })
-PyramidTab:CreateSlider({ name = "วางไม่คืบหน้ากี่วิถึงกลับไปเก็บ", flag = "PlaceTimeout", range = { 5, 60 }, increment = 1, value = 15, callback = function(value) placeTimeout = value end })
+PyramidTab:CreateSlider({ name = "กดค้างครั้งละ (วินาที)", flag = "HoldTime", range = { 0.05, 3 }, increment = 0.05, value = 0.35, description = "ใช้เมื่อปิด 'ค้างยาว' และตอนวางแบบไม่มีปุ่ม", callback = function(value) holdTime = value end })
 PyramidTab:CreateToggle({ name = "กดทุกปุ่มที่ขึ้น (ไม่สนข้อความ)", flag = "AnyPrompt", value = true, description = "ปิดถ้าอยากให้กดเฉพาะปุ่มที่ข้อความตรงกับงาน", callback = function(value) anyPrompt = value end })
+PyramidTab:CreateToggle({ name = "กดปุ่มบนจอแทนคีย์ E", flag = "ClickPrompt", value = false, description = "ใช้เมื่อกด E แล้วไม่ติด", callback = function(value) clickPrompt = value end })
 PyramidTab:CreateButton({ name = "ทดสอบ: กด E ค้าง 1 วิ", callback = function()
 	task.spawn(function()
 		local button, action, object = promptButton()
@@ -831,18 +936,21 @@ PyramidTab:CreateButton({ name = "ทดสอบ: กด E ค้าง 1 ว�
 		pyramidStatus:Set(("ทดสอบกดแล้ว | ปุ่มที่เจอ: %s"):format(button and ("%s / %s"):format(action, object) or "ไม่มีปุ่มบนจอ"))
 	end)
 end })
-PyramidTab:CreateToggle({ name = "กดปุ่มบนจอแทนคีย์ E", flag = "ClickPrompt", value = false, description = "ใช้เมื่อกด E แล้วไม่ติด", callback = function(value) clickPrompt = value end })
-PyramidTab:CreateToggle({ name = "วาร์ปแทนการเดิน", flag = "PyramidTeleport", value = false, description = "เร็วกว่าแต่เสี่ยงโดนตรวจมากกว่า", callback = function(value) useTeleport = value end })
-local function currentPosition()
-	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-	return root and root.Position
-end
-PyramidTab:CreateToggle({ name = "สุ่มวางในกรอบ PyramidBuild", flag = "RoamBuild", value = true, description = "เดินสุ่มในกรอบของพีระมิดแล้วกด E ไปเรื่อย ๆ", callback = function(value)
-	roamEnabled, roamTarget = value, nil
+
+-- ===== 3. การวางหิน: เลือกช่อง + จังหวะย้ายจุด =====
+PyramidTab:CreateSection({ name = "การวางหิน" })
+PyramidTab:CreateToggle({ name = "ตอนวางกด E เอง (เกมไม่มีปุ่มขึ้น)", flag = "BlindPlace", value = true, description = "กด E รัว ๆ ระหว่างอยู่ในกรอบของชั้นที่สร้าง", callback = function(value)
+	blindPlace = value
+	setHold(false)
 end })
-PyramidTab:CreateToggle({ name = "เล็งช่องว่างที่ยังไม่ได้วาง", flag = "GapAim", value = true, description = "คำนวณจากก้อนที่วางแล้วใน PyramidBuild แล้วไปยืนตรงช่องที่ยังว่าง", callback = function(value)
+PyramidTab:CreateToggle({ name = "เล็งช่องว่างที่ยังไม่ได้วาง", flag = "GapAim", value = true, description = "คำนวณจาก LayerSlab + ก้อนที่วางแล้ว แล้วไปยืนตรงช่องที่ยังว่าง", callback = function(value)
 	gapAim, gapCache, roamTarget = value, nil, nil
 end })
+PyramidTab:CreateToggle({ name = "สุ่มในกรอบ (ใช้เมื่อหาช่องว่างไม่เจอ)", flag = "RoamBuild", value = true, callback = function(value)
+	roamEnabled, roamTarget = value, nil
+end })
+PyramidTab:CreateSlider({ name = "หินไม่ลดกี่วิถึงย้ายจุด", flag = "RoamInterval", range = { 0.5, 15 }, increment = 0.5, value = 3, description = "วางได้อยู่ก็ยืนที่เดิมต่อ ย้ายเมื่อตัวนับหินนิ่งเท่านั้น", callback = function(value) roamInterval = value end })
+PyramidTab:CreateSlider({ name = "ความกว้างที่สุ่ม (% ของกรอบ)", flag = "RoamMargin", range = { 20, 100 }, increment = 5, value = 85, callback = function(value) roamMargin = value / 100 end })
 PyramidTab:CreateButton({ name = "นับช่องว่างตอนนี้", callback = function()
 	local gaps = findGaps()
 	local free = 0
@@ -854,14 +962,15 @@ PyramidTab:CreateButton({ name = "ล้างช่องที่พักไ�
 	gapCache, roamTarget = nil, nil
 	pyramidStatus:Set("ล้างรายการช่องที่วางไม่ลงแล้ว")
 end })
-PyramidTab:CreateSlider({ name = "เปลี่ยนจุดสุ่มทุก ๆ (วินาที)", flag = "RoamInterval", range = { 1, 15 }, increment = 0.5, value = 3, callback = function(value) roamInterval = value end })
-PyramidTab:CreateSlider({ name = "ความกว้างที่สุ่ม (% ของกรอบ)", flag = "RoamMargin", range = { 20, 100 }, increment = 5, value = 85, callback = function(value) roamMargin = value / 100 end })
-PyramidTab:CreateButton({ name = "ไป Quarry", callback = function() goTo(regionPosition("Quarry")) end })
-PyramidTab:CreateButton({ name = "ไป Pyramid", callback = function() goTo(regionPosition("Pyramid")) end })
+
+-- ===== 4. จังหวะสลับงาน: ตัวกันค้างทั้งสองฝั่ง =====
+PyramidTab:CreateSection({ name = "จังหวะสลับงาน" })
+PyramidTab:CreateSlider({ name = "เก็บไม่คืบหน้ากี่วิถึงไปวาง", flag = "CollectTimeout", range = { 3, 60 }, increment = 1, value = 8, description = "ตัวนับหยุดขยับ = เต็มมือแล้ว", callback = function(value) collectTimeout = value end })
+PyramidTab:CreateSlider({ name = "วางไม่คืบหน้ากี่วิถึงกลับไปเก็บ", flag = "PlaceTimeout", range = { 5, 60 }, increment = 1, value = 15, callback = function(value) placeTimeout = value end })
 
 task.spawn(function()
 	while true do
-		if not autoRun then
+		if not autoRun or trainingActive then
 			setHold(false)
 		else
 			local carried, maximum = capacity()
@@ -882,8 +991,8 @@ task.spawn(function()
 			local wantedAction = mode == "collect" and "Pick Up" or "Place"
 			local roaming = mode == "place" and roamEnabled and buildModel() ~= nil
 			if roaming then
-				-- วนสุ่มจุดในกรอบพีระมิด จะได้ไม่กระจุกที่เดิมจนวางไม่ลง
-				if not roamTarget or os.clock() - roamSince > roamInterval then
+				-- อยู่จุดเดิมได้เรื่อย ๆ ตราบใดที่หินยังลด (วางลงจริง) ย้ายเมื่อหินนิ่งเกิน roamInterval เท่านั้น
+				if not roamTarget or os.clock() - carriedChanged > roamInterval then
 					roamTarget = (gapAim and nextGapPoint()) or randomBuildPoint() or roamTarget
 					roamSince = os.clock()
 				end
@@ -900,7 +1009,9 @@ task.spawn(function()
 				local button, action, object = promptButton()
 				local matched = button ~= nil and actionMatches(action, wantedAction)
 				-- ปุ่มขึ้นแล้วให้ยืนนิ่ง ๆ กดค้างให้จบก่อน ค่อยขยับต่อ
-				local arrived, distance = goTo(matched and (currentPosition() or position) or position)
+				-- ตอนวางให้ใช้ความสูงของแผ่นชั้นนั้น จะได้ไม่วาร์ปลงไปใต้ชั้น
+				local surfaceY = mode == "place" and layerSurfaceY() or nil
+				local arrived, distance = goTo(matched and (currentPosition() or position) or position, surfaceY)
 
 				if matched then
 					stuckSince = nil
@@ -917,8 +1028,8 @@ task.spawn(function()
 					-- เกมไม่ขึ้นปุ่มตอนวาง: เดินวนในกรอบแล้วกด E รัว ๆ เอง
 					local inside = buildModel() == nil or distance <= arriveRadius or insideBuild()
 					if inside then pulseHold() else setHold(false) end
-					-- ยืนถึงช่องแล้วตัวนับไม่ลดใน 3 วิ = ช่องนี้วางไม่ลง พักช่องนี้แล้วหาช่องใหม่
-					if gapAim and distance <= arriveRadius and os.clock() - carriedChanged > 3 then
+					-- ยืนถึงช่องแล้วหินไม่ลดตามเวลาที่ตั้ง = ช่องนี้วางไม่ลง พักช่องนี้แล้วหาช่องใหม่
+					if gapAim and distance <= arriveRadius and os.clock() - carriedChanged > roamInterval then
 						markFailed(roamTarget)
 						roamTarget, roamSince, gapCache = nil, 0, nil
 					end
@@ -928,7 +1039,8 @@ task.spawn(function()
 						carriedChanged = os.clock()
 						setHold(false)
 					end
-					pyramidStatus:Set(("%s | %s"):format(inside and "กด E วางในกรอบ" or ("เข้ากรอบ (%.0f studs)"):format(distance), counter))
+					pyramidStatus:Set(("%s | %s | หินนิ่ง %.1fs"):format(
+						inside and "กด E วาง" or ("เข้ากรอบ (%.0f studs)"):format(distance), counter, os.clock() - carriedChanged))
 				else
 					setHold(false)
 					if button then
@@ -1154,7 +1266,7 @@ task.spawn(function()
 	while true do
 		local wanted = false
 		for _, id in ipairs(UPGRADE_IDS) do wanted = wanted or autoUpgrade[id] end
-		if wanted then
+		if wanted and not trainingActive then
 			upgradeCatalog = upgradeCatalog or loadCatalog()
 			local money = coins()
 			for _, id in ipairs(UPGRADE_IDS) do
@@ -1184,7 +1296,186 @@ task.spawn(function()
 	end
 end)
 
+
+-- ===== Train: พีระมิดที่สร้างเสร็จโผล่มาเมื่อไร ไปแช่น้ำอย่างเดียว =====
+-- ตัวอย่าง: workspace.CompletedBasicPyramid.Decor.Pool.Water
+local trainPool, trainStatus = false, nil
+trainStatus = TrainTab:CreateText({ name = "Train", text = "เปิด Train Pool เพื่อรอพีระมิดที่สร้างเสร็จ แล้ววาร์ปไปแช่น้ำ" })
+
+local function completedPyramid()
+	for _, child in ipairs(workspace:GetChildren()) do
+		if child:IsA("Model") and child.Name:match("^Completed.*Pyramid$") then return child end
+	end
+	return nil
+end
+
+-- Water เป็นได้ทั้ง Part และ Model จึงต้องหาตำแหน่งให้ครอบทั้งสองแบบ
+local function waterPosition(item)
+	if item:IsA("BasePart") then return item.Position end
+	if item:IsA("Model") then
+		local ok, cf = pcall(item.GetPivot, item)
+		if ok and cf then return cf.Position end
+		local part = item:FindFirstChildWhichIsA("BasePart", true)
+		return part and part.Position
+	end
+	return nil
+end
+
+-- อยู่ในบ่อแล้วหรือยัง จะได้ไม่วาร์ปซ้ำทุกรอบจนตัวกระตุก
+local function insideWater(item)
+	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	if not root then return false end
+	local cf, size
+	if item:IsA("BasePart") then
+		cf, size = item.CFrame, item.Size
+	elseif item:IsA("Model") then
+		local ok, modelCF, modelSize = pcall(item.GetBoundingBox, item)
+		if not ok or not modelCF then return false end
+		cf, size = modelCF, modelSize
+	end
+	if not cf then return false end
+	local point = cf:PointToObjectSpace(root.Position)
+	return math.abs(point.X) <= size.X / 2
+		and math.abs(point.Y) <= size.Y / 2 + 3
+		and math.abs(point.Z) <= size.Z / 2
+end
+
+-- ในพีระมิดมีบ่อน้ำได้หลายจุด (Decor.Pool / Structure.Interior.PoolRoom) เลือกอันที่ใกล้ตัวที่สุด
+local function poolWater(model)
+	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	local best, bestPosition, bestDistance
+	for _, item in ipairs(model:GetDescendants()) do
+		if item.Name == "Water" then
+			local position = waterPosition(item)
+			if position then
+				local distance = root and (position - root.Position).Magnitude or 0
+				if not best or distance < bestDistance then
+					best, bestPosition, bestDistance = item, position, distance
+				end
+			end
+		end
+	end
+	return best, bestPosition
+end
+
+TrainTab:CreateToggle({ name = "Train Pool", flag = "TrainPool", value = false, description = "เจอ Completed*Pyramid เมื่อไร หยุดงานอื่นแล้ววาร์ปไปแช่น้ำจนกว่ามันจะหาย", callback = function(value)
+	trainPool = value
+	if not value then
+		trainingActive = false
+		trainStatus:Set("ปิด Train Pool")
+	end
+end })
+TrainTab:CreateButton({ name = "เช็คตอนนี้ว่ามีพีระมิดที่เสร็จไหม", callback = function()
+	local model = completedPyramid()
+	local water, position = model and poolWater(model)
+	trainStatus:Set(model
+		and ("เจอ %s | น้ำ: %s"):format(model.Name, water
+			and ("%s [%s] ที่ %.0f, %.0f, %.0f"):format(water:GetFullName(), water.ClassName, position.X, position.Y, position.Z)
+			or "ไม่พบ Water")
+		or "ยังไม่มีพีระมิดที่สร้างเสร็จใน workspace")
+end })
+
+task.spawn(function()
+	while true do
+		if trainPool then
+			local model = completedPyramid()
+			if not model then
+				if trainingActive then
+					trainingActive = false
+					trainStatus:Set("พีระมิดหายไปแล้ว — กลับไปทำงานอื่นต่อ")
+				end
+			else
+				local water, position = poolWater(model)
+				local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+				if water and position and root then
+					if not trainingActive then
+						-- เพิ่งเริ่ม: ตัดตัวช่วยของโหมดพีระมิดออกก่อน ไม่งั้นมันดึงกันเอง
+						trainingActive = true
+						setHold(false)
+						setFloat(false)
+					end
+					-- วาร์ปเฉพาะตอนยังไม่ถึง อยู่ในบ่อแล้วปล่อยให้ยืนเฉย ๆ ไม่งั้นตัวกระตุกตลอด
+					local inWater = insideWater(water)
+					if not inWater then root.CFrame = CFrame.new(position) end
+					trainStatus:Set(("%s %s\n%s"):format(inWater and "กำลัง train ใน" or "กำลังไปที่บ่อของ", model.Name, water:GetFullName()))
+				else
+					trainStatus:Set(("เจอ %s แต่หา Water ไม่เจอ"):format(model.Name))
+				end
+			end
+		elseif trainingActive then
+			trainingActive = false
+		end
+		task.wait(trainingActive and 0.2 or 1)
+	end
+end)
+
 SettingsTab:CreateToggle({ name = "Anti AFK", flag = "AntiAfk", value = false, callback = function(value) antiAfkEnabled = value end })
+
+-- ===== Anti AFK ของเกมนี้: ยิง AFKService.Activity เองแทนการขยับจริง =====
+-- AFKController ฝั่ง client ยิง signal นี้เมื่อมี input จริง ส่วน AFKPolicy ฝั่ง server
+-- เอาเวลาที่ไม่มี activity ไปตัดสิน isAFK / shouldRejoin
+local gameAntiAfk, afkStatus = false, nil
+afkStatus = SettingsTab:CreateText({ name = "Anti AFK ของเกม", text = "ยิง AFKService.Activity ตามจังหวะที่ AFKConfig กำหนด" })
+
+local function afkConfig()
+	local shared = ReplicatedStorage:FindFirstChild("Shared")
+	local config = shared and shared:FindFirstChild("Config")
+	local module = config and config:FindFirstChild("AFKConfig")
+	if not module then return nil end
+	local ok, data = pcall(require, module)
+	return ok and type(data) == "table" and data or nil
+end
+
+local function afkService()
+	local packages = ReplicatedStorage:FindFirstChild("Packages")
+	local knitModule = packages and packages:FindFirstChild("Knit")
+	if not knitModule then return nil end
+	local ok, knit = pcall(require, knitModule)
+	if not ok or type(knit) ~= "table" then return nil end
+	local gotService, service = pcall(function() return knit.GetService("AFKService") end)
+	return gotService and service or nil
+end
+
+local function fireActivity()
+	local service = afkService()
+	if not service or not service.Activity then return false, "ไม่พบ AFKService.Activity" end
+	local ok, err = pcall(function() service.Activity:Fire() end)
+	return ok, err
+end
+
+SettingsTab:CreateToggle({ name = "Anti AFK (ยิง Activity ให้เกม)", flag = "GameAntiAfk", value = false, description = "ใช้ระบบของเกมเอง ไม่ต้องขยับตัวจริง", callback = function(value)
+	gameAntiAfk = value
+	afkStatus:Set(value and "เปิดแล้ว — กำลังยิง Activity ให้เอง" or "ปิด Anti AFK ของเกม")
+end })
+SettingsTab:CreateButton({ name = "เช็คสถานะ AFK ตอนนี้", callback = function()
+	local config = afkConfig()
+	local attribute = config and config.AttributeName
+	local flagged = attribute and player:GetAttribute(attribute)
+	local ok, err = fireActivity()
+	afkStatus:Set(("AFKService: %s\nattribute %s = %s\nรายงานทุก %s วิ | ติด AFK ที่ %s วิ | รีจอยน์ที่ %s วิ"):format(
+		ok and "ยิง Activity สำเร็จ" or ("ยิงไม่ได้ — " .. tostring(err)),
+		tostring(attribute or "?"), tostring(flagged),
+		tostring(config and config.ActivityReportSeconds or "?"),
+		tostring(config and config.TitleAfterSeconds or "?"),
+		tostring(config and config.RejoinAfterSeconds or "?")))
+end })
+
+task.spawn(function()
+	while true do
+		local config = afkConfig()
+		-- ยิงถี่กว่าที่เกมกำหนดนิดหน่อย จะได้ไม่มีช่วงที่เซิร์ฟเวอร์นับว่าเงียบ
+		local interval = math.max(5, (tonumber(config and config.ActivityReportSeconds) or 30) * 0.5)
+		if gameAntiAfk then
+			local ok, err = fireActivity()
+			local attribute = config and config.AttributeName
+			afkStatus:Set(("%s | AFK flag: %s"):format(
+				ok and "ยิง Activity แล้ว" or ("ยิงไม่ได้ — " .. tostring(err)),
+				tostring(attribute and player:GetAttribute(attribute))))
+		end
+		task.wait(gameAntiAfk and interval or 5)
+	end
+end)
+
 SettingsTab:CreateButton({
 	name = "Boost FPS",
 	callback = function()
@@ -1199,6 +1490,7 @@ SettingsTab:CreateButton({
 		remoteCaptureEnabled = false
 		autoRun = false
 		table.clear(autoUpgrade)
+		trainPool, trainingActive, gameAntiAfk = false, false, false
 		setHold(false)
 		setFloat(false)
 		setNoclip(false)
