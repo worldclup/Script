@@ -12,6 +12,7 @@ local scripts = {
 	[80610578881227] = "zombie-island/main.lua",
 	[82457571485380] = "zombie-rush-survivals/main.lua",
 	[123720558354386] = "build-a-pyramid/main.lua",
+	[101558013317432] = "slash-per-click/main.lua",
 }
 
 local path = scripts[game.PlaceId] or "all-game/main.lua"
